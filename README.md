@@ -1,3 +1,7 @@
 # computer_vision
 
-i am trying to do it, wish me luck
+main.py - основной файл с алгоритмом
+
+set_up.py - файл, по которому будет настраиваться оборудование(правая кнопка мыши - цвета, левая кнопка - ROI(region of interest))
+
+config.py - сожержит в себе все настройки

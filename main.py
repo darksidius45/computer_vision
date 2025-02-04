@@ -4,23 +4,28 @@ from config import *
 
 
 # load hsv
-lower_hsv = vivo_lower_hsv
-upper_hsv = vivo_upper_hsv
+lower_hsv_green = vivo_lower_hsv_green
+upper_hsv_green = vivo_upper_hsv_green
 
-# Define ROI coordinates
+lower_hsv_red = vivo_lower_hsv_red
+upper_hsv_red = vivo_upper_hsv_red
+
+
 roi_x, roi_y = 1117, 258
 roi_width, roi_height = 785, 713
+
+roi_x_red, roi_y_red = 320, 437
+roi_width_red, roi_height_red = 475, 523
 
 # Загрузка видеофайла
 cap = cv2.VideoCapture(vivo_video)
 
 
-# Проверка, что видео загружено корректно
 if not cap.isOpened():
     print("Ошибка: видео не загружено.")
     exit()
 
-# Список для хранения траекторий нескольких объектов
+
 trajectories = {}  # Словарь для хранения траекторий {id: points}
 next_id = 0  # Счетчик для назначения ID объектам
 max_distance = 120  # Максимальное расстояние для связывания точек
@@ -32,43 +37,66 @@ while True:
         break  # Выход, если видео закончилось
 
     # Extract ROI from frame
-    roi = frame[roi_y:roi_y+roi_height, roi_x:roi_x+roi_width]
-
+    roi = frame[roi_y : roi_y + roi_height, roi_x : roi_x + roi_width]
+    roi_red = frame[
+        roi_y_red : roi_y_red + roi_height_red, roi_x_red : roi_x_red + roi_width_red
+    ]
     # Конвертируем ROI в HSV
-    hsv_frame = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    hsv_frame_green = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    hsv_frame_red = cv2.cvtColor(roi_red, cv2.COLOR_BGR2HSV)
 
-    # Создаем маску для диапазона цветов в HSV
-    mask = cv2.inRange(hsv_frame, lower_hsv, upper_hsv)
+    # маски для диапазона цветов в HSV
+    mask_green = cv2.inRange(hsv_frame_green, lower_hsv_green, upper_hsv_green)
+    mask_red = cv2.inRange(hsv_frame_red, lower_hsv_red, upper_hsv_red)
 
     # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=1)
-    mask = cv2.dilate(mask, kernel, iterations=2)
+    mask_green = cv2.erode(mask_green, kernel, iterations=1)
+    mask_green = cv2.dilate(mask_green, kernel, iterations=2)
+    mask_red = cv2.erode(mask_red, kernel, iterations=1)
+    mask_red = cv2.dilate(mask_red, kernel, iterations=2)
 
     current_centers = []
 
-    # Находим контуры объектов на маске
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # КОНТУРЫЫЫЫЫЫЫЫ
+    contours_green, _ = cv2.findContours(
+        mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    contours_red, _ = cv2.findContours(
+        mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
-    # Draw ROI rectangle on original frame
-    cv2.rectangle(frame, (roi_x, roi_y), (roi_x + roi_width, roi_y + roi_height), (255, 255, 255), 2)
+    # Отрисовываем ROI
+    cv2.rectangle(
+        frame,
+        (roi_x, roi_y),
+        (roi_x + roi_width, roi_y + roi_height),
+        (255, 255, 255),
+        2,
+    )
+    cv2.rectangle(
+        frame,
+        (roi_x_red, roi_y_red),
+        (roi_x_red + roi_width_red, roi_y_red + roi_height_red),
+        (255, 255, 255),
+        2,
+    )
 
     # Рисуем контуры и центры объектов
-    for contour in contours:
-        # Игнорируем слишком маленькие контуры (шум)
+    for contour in contours_green:
+        # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 75:  # Уменьшаем минимальную площадь для более чувствительного обнаружения
+        if area < 75:
             continue
 
-        # Получаем прямоугольник, описывающий контур
+        # прямоугольник, описывающий контур
         (x, y, w, h) = cv2.boundingRect(contour)
-        
-        # Проверяем соотношение сторон и площадь для фильтрации ложных срабатываний
+
         aspect_ratio = float(w) / h
         if aspect_ratio < 0.2 or aspect_ratio > 5:
             continue
 
-        # Convert coordinates to original frame coordinates
+        # Convert coordinates
         abs_x = x + roi_x
         abs_y = y + roi_y
 
@@ -91,9 +119,52 @@ while True:
             2,
         )
 
+    for contour in contours_red:
+        # Игнор шума
+        area = cv2.contourArea(contour)
+        if area < 50 or area > 500:
+
+            continue
+
+        # Получаем прямоугольник, описывающий контур
+        (x, y, w, h) = cv2.boundingRect(contour)
+
+        # Проверяем соотношение сторон и площадь для фильтрации ложных срабатываний
+        aspect_ratio = float(w) / h
+        if aspect_ratio < 0.5 or aspect_ratio > 2.0:
+            continue
+
+        # Convert coordinates to original frame coordinates
+        abs_x = x + roi_x_red
+        abs_y = y + roi_y_red
+
+        # Вычисляем центр объекта
+        center = (abs_x + w // 2, abs_y + h // 2)
+
+        # Дополнительная проверка на положение центра
+        if (
+            roi_x_red <= center[0] <= roi_x_red + roi_width_red
+            and roi_y_red <= center[1] <= roi_y_red + roi_height_red
+        ):
+            # current_centers.append(center)
+
+            # прямоугольник вокруг объекта
+            cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
+            cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
+            # Добавляем отображение площади объекта(на самом деле не нужно)
+            cv2.putText(
+                frame,
+                f"Area: {int(area)}",
+                (abs_x, abs_y - 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),
+                2,
+            )
+
     # Обновляем траектории
     if current_centers:
-        # Если траектории пустые, создаем новые
         if not trajectories:
             for center in current_centers:
                 trajectories[next_id] = [center]
@@ -108,15 +179,18 @@ while True:
                 if not track_points:
                     continue
                 last_point = track_points[-1]
-                
+
                 # Находим ближайший центр для текущей траектории
-                min_dist = float('inf')
+                min_dist = float("inf")
                 closest_center = None
-                
+
                 for center in current_centers:
                     if center in matched_centers:
                         continue
-                    dist = np.sqrt((center[0] - last_point[0])**2 + (center[1] - last_point[1])**2)
+                    dist = np.sqrt(
+                        (center[0] - last_point[0]) ** 2
+                        + (center[1] - last_point[1]) ** 2
+                    )
                     if dist < min_dist and dist < max_distance:
                         min_dist = dist
                         closest_center = center
@@ -136,12 +210,18 @@ while True:
             trajectories = {k: v for k, v in trajectories.items() if len(v) > 0}
 
     # Рисуем траектории
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]  # Разные цвета для разных траекторий
+    colors = [
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+        (255, 255, 0),
+        (255, 0, 255),
+    ]  # Разные цвета для разных траекторий   ----- надо фиксить ошбки траекторий
     for track_id, points in trajectories.items():
         if len(points) > 1:
             color = colors[track_id % len(colors)]
             for i in range(1, len(points)):
-                cv2.line(frame, points[i-1], points[i], color, 2)
+                cv2.line(frame, points[i - 1], points[i], color, 2)
 
         # Ограничиваем длину траектории
         if len(points) > 50:
@@ -149,9 +229,10 @@ while True:
 
     # Показываем кадр и маску
     cv2.imshow("Frame", frame)
-    cv2.imshow("Mask", mask)
+    cv2.imshow("Mask_green", mask_green)
+    cv2.imshow("Mask_red", mask_red)
 
-    # Выход по нажатию клавиши 'q'
+    # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):
         break
 

@@ -7,9 +7,16 @@ vivo_video = (
 
 
 # HSV диапазоны для pixel
-pixel_lower_hsv = np.array([70, 90, 100])
-pixel_upper_hsv = np.array([85, 170, 180])
+pixel_lower_hsv_green = np.array([70, 90, 100])
+pixel_upper_hsv_green = np.array([85, 170, 180])
+
+pixel_lower_hsv_red = np.array([0, 100, 100])
+pixel_upper_hsv_red = np.array([10, 255, 255])
+
 
 # HSV диапазоны для vivo
-vivo_lower_hsv = np.array([60, 30, 120])
-vivo_upper_hsv = np.array([75, 150, 200])
+vivo_lower_hsv_green = np.array([60, 30, 120])
+vivo_upper_hsv_green = np.array([75, 150, 200])
+
+vivo_lower_hsv_red = np.array([0, 50, 50])
+vivo_upper_hsv_red = np.array([10, 255, 255])

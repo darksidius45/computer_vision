@@ -34,13 +34,15 @@ def get_color_from_video(video_path):
     paused = False
     roi_points = []
     drawing = False
+    lower_hsv = np.array([0, 0, 0])
+    upper_hsv = np.array([179, 255, 255])
 
     if not cap.isOpened():
         print("Ошибка: видео не загружено.")
         return
 
     def mouse_callback(event, x, y, flags, param):
-        nonlocal drawing, roi_points
+        nonlocal drawing, roi_points, lower_hsv, upper_hsv
         frame = param
 
         if event == cv2.EVENT_LBUTTONDOWN and paused:
@@ -65,7 +67,7 @@ def get_color_from_video(video_path):
             drawing = False
             if len(roi_points) > 0:
                 roi_points.append((x, y))  # Add final point
-                
+
                 # Calculate rectangle dimensions
                 roi_x = roi_points[0][0]
                 roi_y = roi_points[0][1]
@@ -80,10 +82,26 @@ def get_color_from_video(video_path):
             temp_frame = frame.copy()
             if len(roi_points) > 0:
                 # Draw line from last point to current mouse position
-                cv2.rectangle(temp_frame, roi_points[0], (x,y), (0, 255, 0), 2)
+                cv2.rectangle(temp_frame, roi_points[0], (x, y), (0, 255, 0), 2)
                 cv2.imshow("Video", temp_frame)
 
+    def on_trackbar(val):
+        nonlocal lower_hsv, upper_hsv
+        lower_hsv[0] = cv2.getTrackbarPos("Lower H", "Mask")
+        lower_hsv[1] = cv2.getTrackbarPos("Lower S", "Mask")
+        lower_hsv[2] = cv2.getTrackbarPos("Lower V", "Mask")
+        upper_hsv[0] = cv2.getTrackbarPos("Upper H", "Mask")
+        upper_hsv[1] = cv2.getTrackbarPos("Upper S", "Mask")
+        upper_hsv[2] = cv2.getTrackbarPos("Upper V", "Mask")
+
     cv2.namedWindow("Video")
+    cv2.namedWindow("Mask")
+    cv2.createTrackbar("Lower H", "Mask", 0, 179, on_trackbar)
+    cv2.createTrackbar("Lower S", "Mask", 0, 255, on_trackbar)
+    cv2.createTrackbar("Lower V", "Mask", 0, 255, on_trackbar)
+    cv2.createTrackbar("Upper H", "Mask", 179, 179, on_trackbar)
+    cv2.createTrackbar("Upper S", "Mask", 255, 255, on_trackbar)
+    cv2.createTrackbar("Upper V", "Mask", 255, 255, on_trackbar)
 
     while True:
         if not paused:
@@ -98,6 +116,11 @@ def get_color_from_video(video_path):
 
         cv2.setMouseCallback("Video", mouse_callback, frame)
         cv2.imshow("Video", temp_frame)
+
+        if paused:
+            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            mask = cv2.inRange(hsv_frame, lower_hsv, upper_hsv)
+            cv2.imshow("Mask", mask)
 
         key = cv2.waitKey(30) & 0xFF
         if key == ord("q"):

@@ -1,12 +1,16 @@
 import cv2
 import numpy as np
-import config
+from config import get_camera_settings
 
 coords = []
 color = None
 scale = 1.0
 zoom_pt = None
 
+
+camera_type = "pixel"
+camera_settings = get_camera_settings(camera_type)
+video_path = camera_settings["video"]
 
 def zoom(img, center, scale):
     height, width = img.shape[:2]
@@ -134,7 +138,5 @@ def get_color_from_video(video_path):
 
 
 # Get color and ROI from video
-video_path = (
-   r"C:\Users\prive\Desktop\prog\computer_vision\test_videos\PXL_20250203_111501037.mp4"
-)
+
 roi_points = get_color_from_video(video_path)

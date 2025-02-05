@@ -135,6 +135,6 @@ def get_color_from_video(video_path):
 
 # Get color and ROI from video
 video_path = (
-    r"C:\Users\prive\Desktop\prog\computer_vision\test_videos\video_20250203_141227.mp4"
+   r"C:\Users\prive\Desktop\prog\computer_vision\test_videos\PXL_20250203_111501037.mp4"
 )
 roi_points = get_color_from_video(video_path)

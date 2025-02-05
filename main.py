@@ -3,22 +3,35 @@ import numpy as np
 from config import *
 
 
-# load hsv
-lower_hsv_green = vivo_lower_hsv_green
-upper_hsv_green = vivo_upper_hsv_green
-
-lower_hsv_red = vivo_lower_hsv_red
-upper_hsv_red = vivo_upper_hsv_red
+# load all settings
+camera_type = "vivo"
+camera_settings = get_camera_settings(camera_type)
 
 
-roi_x, roi_y = 1117, 258
-roi_width, roi_height = 785, 713
+lower_hsv_green = camera_settings["lower_hsv_green"]
+upper_hsv_green = camera_settings["upper_hsv_green"]
 
-roi_x_red, roi_y_red = 320, 437
-roi_width_red, roi_height_red = 475, 523
+lower_hsv_red = camera_settings["lower_hsv_red"]
+upper_hsv_red = camera_settings["upper_hsv_red"]
+
+roi_x_green = camera_settings["roi_x_green"]
+roi_y_green = camera_settings["roi_y_green"]
+roi_width_green = camera_settings["roi_width_green"]
+roi_height_green = camera_settings["roi_height_green"]
+
+
+roi_x_red = camera_settings["roi_x_red"]
+roi_y_red = camera_settings["roi_y_red"]
+roi_width_red = camera_settings["roi_width_red"]
+roi_height_red = camera_settings["roi_height_red"]
+
+video = camera_settings["video"]
+
+
+
 
 # Загрузка видеофайла
-cap = cv2.VideoCapture(vivo_video)
+cap = cv2.VideoCapture(video)
 
 
 if not cap.isOpened():
@@ -37,7 +50,7 @@ while True:
         break  # Выход, если видео закончилось
 
     # Extract ROI from frame
-    roi = frame[roi_y : roi_y + roi_height, roi_x : roi_x + roi_width]
+    roi = frame[roi_y_green : roi_y_green + roi_height_green, roi_x_green : roi_x_green + roi_width_green]
     roi_red = frame[
         roi_y_red : roi_y_red + roi_height_red, roi_x_red : roi_x_red + roi_width_red
     ]
@@ -69,10 +82,11 @@ while True:
     # Отрисовываем ROI
     cv2.rectangle(
         frame,
-        (roi_x, roi_y),
-        (roi_x + roi_width, roi_y + roi_height),
+        (roi_x_green, roi_y_green),
+        (roi_x_green + roi_width_green, roi_y_green + roi_height_green),
         (255, 255, 255),
         2,
+
     )
     cv2.rectangle(
         frame,
@@ -97,8 +111,9 @@ while True:
             continue
 
         # Convert coordinates
-        abs_x = x + roi_x
-        abs_y = y + roi_y
+        abs_x = x + roi_x_green
+        abs_y = y + roi_y_green
+
 
         # Вычисляем центр объекта
         center = (abs_x + w // 2, abs_y + h // 2)
@@ -122,7 +137,7 @@ while True:
     for contour in contours_red:
         # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 50 or area > 500:
+        if area < 50 or area > 350:
 
             continue
 

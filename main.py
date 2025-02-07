@@ -4,39 +4,42 @@ from config import get_camera_settings
 
 
 # load all settings
-camera_type = "pixel"
+camera_type = "pixel_stable"
 camera_settings = get_camera_settings(camera_type)
 
 
-lower_hsv_green = camera_settings["lower_hsv_green"]
-upper_hsv_green = camera_settings["upper_hsv_green"]
-
-lower_hsv_red1 = camera_settings["lower_hsv_red1"]
-upper_hsv_red1 = camera_settings["upper_hsv_red1"]
-
-lower_hsv_red2 = camera_settings["lower_hsv_red2"]
-upper_hsv_red2 = camera_settings["upper_hsv_red2"]
-
-roi_x_green = camera_settings["roi_x_green"]
-roi_y_green = camera_settings["roi_y_green"]
-roi_width_green = camera_settings["roi_width_green"]
-
-roi_height_green = camera_settings["roi_height_green"]
+lower_hsv_machine = camera_settings["lower_hsv_machine"]
+upper_hsv_machine = camera_settings["upper_hsv_machine"]
 
 
-roi_x_red = camera_settings["roi_x_red"]
-roi_y_red = camera_settings["roi_y_red"]
-roi_width_red = camera_settings["roi_width_red"]
-roi_height_red = camera_settings["roi_height_red"]
+lower_hsv_weight1 = camera_settings["lower_hsv_weight1"]
+upper_hsv_weight1 = camera_settings["upper_hsv_weight1"]
 
+
+lower_hsv_weight2 = camera_settings["lower_hsv_weight2"]
+upper_hsv_weight2 = camera_settings["upper_hsv_weight2"]
+
+
+roi_x_machine = camera_settings["roi_x_machine"]
+roi_y_machine = camera_settings["roi_y_machine"]
+roi_width_machine = camera_settings["roi_width_machine"]
+roi_height_machine = camera_settings["roi_height_machine"]
+
+
+roi_x_weight = camera_settings["roi_x_weight"]
+roi_y_weight = camera_settings["roi_y_weight"]
+roi_width_weight = camera_settings["roi_width_weight"]
+roi_height_weight = camera_settings["roi_height_weight"]
+
+
+start_time = camera_settings["start_time"]
 video = camera_settings["video"]
 
 
-
-
 # Загрузка видеофайла
+
 cap = cv2.VideoCapture(video)
-cap.set(cv2.CAP_PROP_POS_MSEC, 3000)  # включи видео с 3 секунды
+cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с 3 секунды
 
 
 if not cap.isOpened():
@@ -55,62 +58,77 @@ while True:
         break  # Выход, если видео закончилось
 
     # Extract ROI from frame
-    roi = frame[roi_y_green : roi_y_green + roi_height_green, roi_x_green : roi_x_green + roi_width_green]
-    roi_red = frame[
-        roi_y_red : roi_y_red + roi_height_red, roi_x_red : roi_x_red + roi_width_red
+    roi = frame[
+        roi_y_machine : roi_y_machine + roi_height_machine,
+        roi_x_machine : roi_x_machine + roi_width_machine,
+    ]
+
+    roi_weight = frame[
+        roi_y_weight : roi_y_weight + roi_height_weight, roi_x_weight : roi_x_weight + roi_width_weight
     ]
     # Конвертируем ROI в HSV
-    hsv_frame_green = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-    hsv_frame_red = cv2.cvtColor(roi_red, cv2.COLOR_BGR2HSV)
+
+
+    hsv_frame_machine = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    hsv_frame_weight = cv2.cvtColor(roi_weight, cv2.COLOR_BGR2HSV)
+
+
 
     # маски для диапазона цветов в HSV
-    mask_green = cv2.inRange(hsv_frame_green, lower_hsv_green, upper_hsv_green)
+    mask_machine = cv2.inRange(hsv_frame_machine, lower_hsv_machine, upper_hsv_machine)
+
+
+
 
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
-    mask_red1 = cv2.inRange(hsv_frame_red, lower_hsv_red1, upper_hsv_red1)
-    mask_red2 = cv2.inRange(hsv_frame_red, lower_hsv_red2, upper_hsv_red2)
-    mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+    mask_weight1 = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
+    mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
+    mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
 
 
     # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
-    mask_green = cv2.erode(mask_green, kernel, iterations=1)
-    mask_green = cv2.dilate(mask_green, kernel, iterations=2)
-    mask_red = cv2.erode(mask_red, kernel, iterations=1)
-    mask_red = cv2.dilate(mask_red, kernel, iterations=2)
+    mask_machine = cv2.erode(mask_machine, kernel, iterations=1)
+    mask_machine = cv2.dilate(mask_machine, kernel, iterations=2)
+    mask_weight = cv2.erode(mask_weight, kernel, iterations=1)
+    mask_weight = cv2.dilate(mask_weight, kernel, iterations=2)
+
 
     current_centers = []
 
     # КОНТУРЫЫЫЫЫЫЫЫ
-    contours_green, _ = cv2.findContours(
-        mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    contours_machine, _ = cv2.findContours(
+        mask_machine, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    contours_red, _ = cv2.findContours(
-        mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    contours_weight, _ = cv2.findContours(
+        mask_weight, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
+
 
     # Отрисовываем ROI
     cv2.rectangle(
         frame,
-        (roi_x_green, roi_y_green),
-        (roi_x_green + roi_width_green, roi_y_green + roi_height_green),
+        (roi_x_machine, roi_y_machine),
+        (roi_x_machine + roi_width_machine, roi_y_machine + roi_height_machine),
         (255, 255, 255),
         2,
 
     )
     cv2.rectangle(
         frame,
-        (roi_x_red, roi_y_red),
-        (roi_x_red + roi_width_red, roi_y_red + roi_height_red),
+        (roi_x_weight, roi_y_weight),
+        (roi_x_weight + roi_width_weight, roi_y_weight + roi_height_weight),
         (255, 255, 255),
         2,
+
     )
 
     # Рисуем контуры и центры объектов
-    for contour in contours_green:
+    for contour in contours_machine:
         # Игнор шума
         area = cv2.contourArea(contour)
         if area < 75:
+
             continue
 
         # прямоугольник, описывающий контур
@@ -121,8 +139,8 @@ while True:
             continue
 
         # Convert coordinates
-        abs_x = x + roi_x_green
-        abs_y = y + roi_y_green
+        abs_x = x + roi_x_machine
+        abs_y = y + roi_y_machine
 
 
         # Вычисляем центр объекта
@@ -147,18 +165,19 @@ while True:
     current_centerss = []
     red_markers_count = 0
     data = []
-    
+
     # Store centers from previous frame if not already defined
-    if not hasattr(cv2, 'prev_red_centers'):
+    if not hasattr(cv2, "prev_red_centers"):
         cv2.prev_red_centers = []
 
     # Get current centers
     current_red_centers = []
 
-    for contour in contours_red:
+    for contour in contours_weight:
         # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 80 or area > 500:
+        if area < 300:
+
             continue
 
         # Получаем прямоугольник, описывающий контур
@@ -170,30 +189,35 @@ while True:
             continue
 
         # Convert coordinates to original frame coordinates
-        abs_x = x + roi_x_red
-        abs_y = y + roi_y_red
+        abs_x = x + roi_x_weight
+        abs_y = y + roi_y_weight
+
 
         # Вычисляем центр объекта
         center = (abs_x + w // 2, abs_y + h // 2)
 
         # Дополнительная проверка на положение центра
         if (
-            roi_x_red <= center[0] <= roi_x_red + roi_width_red
-            and roi_y_red <= center[1] <= roi_y_red + roi_height_red
+            roi_x_weight <= center[0] <= roi_x_weight + roi_width_weight
+            and roi_y_weight <= center[1] <= roi_y_weight + roi_height_weight
         ):
             current_red_centers.append(center)
-            
+
+
             # Check if this center has moved compared to previous frame
             is_moving = True
             if cv2.prev_red_centers:
-                min_dist = float('inf')
+                min_dist = float("inf")
                 for prev_center in cv2.prev_red_centers:
-                    dist = np.sqrt((center[0] - prev_center[0])**2 + (center[1] - prev_center[1])**2)
+                    dist = np.sqrt(
+                        (center[0] - prev_center[0]) ** 2
+                        + (center[1] - prev_center[1]) ** 2
+                    )
                     min_dist = min(dist, min_dist)
                 # If center hasn't moved much, it's not considered moving
                 if min_dist < 5:  # threshold for movement detection
                     is_moving = False
-            
+
             if is_moving:
                 red_markers_count += 1
 
@@ -204,7 +228,7 @@ while True:
     # Update previous centers for next frame
     cv2.prev_red_centers = current_red_centers.copy()
     print(red_markers_count)
-    
+
     data.append(red_markers_count)
 
     # Find the most frequent count
@@ -219,7 +243,6 @@ while True:
         0.7,
         (0, 0, 255),
         2,
-
     )
 
     # Обновляем траектории
@@ -288,8 +311,9 @@ while True:
 
     # Показываем кадр и маску
     cv2.imshow("Frame", frame)
-    cv2.imshow("Mask_green", mask_green)
-    cv2.imshow("Mask_red", mask_red)
+    cv2.imshow("Mask_machine", mask_machine)
+    cv2.imshow("Mask_weight", mask_weight)
+
 
     # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):

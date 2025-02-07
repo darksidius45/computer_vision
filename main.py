@@ -162,7 +162,7 @@ while True:
             2,
         )
 
-    current_centerss = []
+
     red_markers_count = 0
     data = []
 
@@ -172,6 +172,9 @@ while True:
 
     # Get current centers
     current_red_centers = []
+
+    objects = {}
+    next_object_id = 0
 
     for contour in contours_weight:
         # Игнор шума
@@ -224,6 +227,37 @@ while True:
             # Draw rectangle around the object
             cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
+        updated_objects = {}
+
+
+    for obj_id, prev_center in objects.items():
+        # Находим ближайший центр в текущем кадре
+        min_distance = float('inf')
+        closest_center = None
+
+        for center in current_red_centers:
+            distance = np.linalg.norm(np.array(prev_center) - np.array(center))
+            if distance < min_distance:
+                min_distance = distance
+                closest_center = center
+
+        if closest_center is not None:
+            updated_objects[obj_id] = closest_center
+            current_centers.remove(closest_center)  # Убираем центр из списка, чтобы не использовать его повторно
+
+    # Добавляем новые объекты
+    for center in current_red_centers:
+        updated_objects[next_object_id] = center
+        next_object_id += 1  # Увеличиваем счётчик ID
+
+    # Обновляем словарь объектов
+    objects = updated_objects
+
+    # Рисуем ID объектов
+    for obj_id, center in objects.items():
+        cv2.putText(frame, f"ID: {obj_id}", (center[0] - 20, center[1] - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
     # Update previous centers for next frame
     cv2.prev_red_centers = current_red_centers.copy()

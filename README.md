@@ -13,5 +13,5 @@ requiriments.txt - нужные библиотеки.
 ```
 git clone https://github.com/darksidius45/computer_vision
 cd computer_vision
-pip install -r requiriments.txt
+pip install -r requirements.txt
 ```

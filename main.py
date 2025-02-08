@@ -49,7 +49,8 @@ if not cap.isOpened():
 
 trajectories = {}  # Словарь для хранения траекторий {id: points}
 next_id = 0  # Счетчик для назначения ID объектам
-max_distance = 120  # Максимальное расстояние для связывания точек
+max_distance = 120
+ob_info = {}  # Максимальное расстояние для связывания точек
 
 
 while True:
@@ -163,24 +164,21 @@ while True:
         )
 
 
-    red_markers_count = 0
+    weight_markers_count = 0
     data = []
 
     # Store centers from previous frame if not already defined
-    if not hasattr(cv2, "prev_red_centers"):
-        cv2.prev_red_centers = []
+    if not hasattr(cv2, "prev_weight_centers"):
+        cv2.prev_weight_centers = []
 
     # Get current centers
-    current_red_centers = []
-
-    objects = {}
-    next_object_id = 0
+    current_weight_centers = []
+    updated_objects = {}
 
     for contour in contours_weight:
         # Игнор шума
         area = cv2.contourArea(contour)
         if area < 300:
-
             continue
 
         # Получаем прямоугольник, описывающий контур
@@ -195,7 +193,6 @@ while True:
         abs_x = x + roi_x_weight
         abs_y = y + roi_y_weight
 
-
         # Вычисляем центр объекта
         center = (abs_x + w // 2, abs_y + h // 2)
 
@@ -204,66 +201,68 @@ while True:
             roi_x_weight <= center[0] <= roi_x_weight + roi_width_weight
             and roi_y_weight <= center[1] <= roi_y_weight + roi_height_weight
         ):
-            current_red_centers.append(center)
+            current_weight_centers.append(center)
 
-
-            # Check if this center has moved compared to previous frame
-            is_moving = True
-            if cv2.prev_red_centers:
-                min_dist = float("inf")
-                for prev_center in cv2.prev_red_centers:
-                    dist = np.sqrt(
-                        (center[0] - prev_center[0]) ** 2
-                        + (center[1] - prev_center[1]) ** 2
-                    )
-                    min_dist = min(dist, min_dist)
-                # If center hasn't moved much, it's not considered moving
-                if min_dist < 5:  # threshold for movement detection
-                    is_moving = False
-
-            if is_moving:
-                red_markers_count += 1
-
-            # Draw rectangle around the object
-            cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
-            cv2.circle(frame, center, 5, (0, 0, 255), -1)
-
-        updated_objects = {}
-
-
-    for obj_id, prev_center in objects.items():
+    # Track objects across frames
+    for obj_id, prev_center in ob_info.items():
         # Находим ближайший центр в текущем кадре
         min_distance = float('inf')
         closest_center = None
 
-        for center in current_red_centers:
-            distance = np.linalg.norm(np.array(prev_center) - np.array(center))
+        for center in current_weight_centers:
+            distance = np.linalg.norm(np.array(prev_center[0]) - np.array(center))
             if distance < min_distance:
                 min_distance = distance
                 closest_center = center
 
-        if closest_center is not None:
-            updated_objects[obj_id] = closest_center
-            current_centers.remove(closest_center)  # Убираем центр из списка, чтобы не использовать его повторно
+        if closest_center is not None and min_distance < 50:  # Увеличил порог расстояния
+            updated_objects[obj_id] = [closest_center, prev_center[1] + 1]
+            current_weight_centers.remove(closest_center)
+        else:
+            # Если объект не обнаружен в течение 5 кадров, удаляем его
+            if prev_center[1] < 5:
+                updated_objects[obj_id] = [prev_center[0], 0]
 
-    # Добавляем новые объекты
-    for center in current_red_centers:
-        updated_objects[next_object_id] = center
-        next_object_id += 1  # Увеличиваем счётчик ID
+    # Add new objects only if they persist for a few frames
+    if len(ob_info) == 0:
+        next_object_id = 0
+    else:
+        # Очищаем неактивные ID перед добавлением новых
+        active_ids = [id for id, info in updated_objects.items() if info[1] > 0]
+        next_object_id = max(active_ids) + 1 if active_ids else 0
 
-    # Обновляем словарь объектов
-    objects = updated_objects
+    # Добавляем новые объекты только если есть свободное место (максимум 10 объектов)
+    for center in current_weight_centers:
+        if len(updated_objects) < 10:
+            updated_objects[next_object_id] = [center, 0]
+            next_object_id += 1
 
-    # Рисуем ID объектов
-    for obj_id, center in objects.items():
-        cv2.putText(frame, f"ID: {obj_id}", (center[0] - 20, center[1] - 20),
+    ob_info = updated_objects
+
+
+
+
+    cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
+
+
+
+    for obj_id, center in ob_info.items():
+        cv2.putText(frame, f"ID: {obj_id}", (center[0][0] - 20, center[0][1] - 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-    # Update previous centers for next frame
-    cv2.prev_red_centers = current_red_centers.copy()
-    print(red_markers_count)
+    not_in = 0
+    for obj_id, center in ob_info.items():
+        if center[1] > 3:
+            not_in += 1
+    print(len(ob_info) - not_in)
 
-    data.append(red_markers_count)
+
+
+
+    data.append(weight_markers_count)
+
+
+
 
     # Find the most frequent count
     most_frequent_count = max(set(data), key=lambda x: data.count(x))
@@ -271,7 +270,7 @@ while True:
     # Display the average count of moving red markers on the frame
     cv2.putText(
         frame,
-        f"Avg Red Markers: {most_frequent_count}",
+        f"Avg weight Markers: {most_frequent_count}",
         (10, 30),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -344,9 +343,26 @@ while True:
             trajectories[track_id] = points[-50:]
 
     # Показываем кадр и маску
-    cv2.imshow("Frame", frame)
-    cv2.imshow("Mask_machine", mask_machine)
-    cv2.imshow("Mask_weight", mask_weight)
+    # Set window sizes
+    frame_width = 800
+    frame_height = 600
+    mask_width = 400
+    mask_height = 300
+
+    # Resize images
+    frame_resized = cv2.resize(frame, (frame_width, frame_height))
+    mask_machine_resized = cv2.resize(mask_machine, (mask_width, mask_height))
+    mask_weight_resized = cv2.resize(mask_weight, (mask_width, mask_height))
+
+    # Show resized windows
+    cv2.imshow("Frame", frame_resized)
+    cv2.imshow("Mask_machine", mask_machine_resized)
+    cv2.imshow("Mask_weight", mask_weight_resized)
+
+    # Position windows
+    cv2.moveWindow("Frame", 0, 0)
+    cv2.moveWindow("Mask_machine", frame_width, 0)
+    cv2.moveWindow("Mask_weight", frame_width + mask_width, 0)
 
 
     # Выход по нажатию клавиши q

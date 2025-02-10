@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from config import get_camera_settings
-
+import win32api
 
 # load all settings
 camera_type = "pixel_stable"
@@ -65,27 +65,21 @@ while True:
     ]
 
     roi_weight = frame[
-        roi_y_weight : roi_y_weight + roi_height_weight, roi_x_weight : roi_x_weight + roi_width_weight
+        roi_y_weight : roi_y_weight + roi_height_weight,
+        roi_x_weight : roi_x_weight + roi_width_weight,
     ]
     # Конвертируем ROI в HSV
-
 
     hsv_frame_machine = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     hsv_frame_weight = cv2.cvtColor(roi_weight, cv2.COLOR_BGR2HSV)
 
-
-
     # маски для диапазона цветов в HSV
     mask_machine = cv2.inRange(hsv_frame_machine, lower_hsv_machine, upper_hsv_machine)
-
-
-
 
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
     mask_weight1 = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
     mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
     mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
-
 
     # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
@@ -93,7 +87,6 @@ while True:
     mask_machine = cv2.dilate(mask_machine, kernel, iterations=2)
     mask_weight = cv2.erode(mask_weight, kernel, iterations=1)
     mask_weight = cv2.dilate(mask_weight, kernel, iterations=2)
-
 
     current_centers = []
 
@@ -105,7 +98,6 @@ while True:
         mask_weight, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
-
     # Отрисовываем ROI
     cv2.rectangle(
         frame,
@@ -113,7 +105,6 @@ while True:
         (roi_x_machine + roi_width_machine, roi_y_machine + roi_height_machine),
         (255, 255, 255),
         2,
-
     )
     cv2.rectangle(
         frame,
@@ -121,7 +112,6 @@ while True:
         (roi_x_weight + roi_width_weight, roi_y_weight + roi_height_weight),
         (255, 255, 255),
         2,
-
     )
 
     # Рисуем контуры и центры объектов
@@ -143,7 +133,6 @@ while True:
         abs_x = x + roi_x_machine
         abs_y = y + roi_y_machine
 
-
         # Вычисляем центр объекта
         center = (abs_x + w // 2, abs_y + h // 2)
         current_centers.append(center)
@@ -162,7 +151,6 @@ while True:
             (255, 255, 255),
             2,
         )
-
 
     weight_markers_count = 0
     data = []
@@ -206,7 +194,7 @@ while True:
     # Track objects across frames
     for obj_id, prev_center in ob_info.items():
         # Находим ближайший центр в текущем кадре
-        min_distance = float('inf')
+        min_distance = float("inf")
         closest_center = None
 
         for center in current_weight_centers:
@@ -217,7 +205,11 @@ while True:
 
         if closest_center is not None and min_distance < 100:
             if min_distance < 10:
-                updated_objects[obj_id] = [closest_center, prev_center[1] + 1, prev_center[2] + 1]
+                updated_objects[obj_id] = [
+                    closest_center,
+                    prev_center[1] + 1,
+                    prev_center[2] + 1,
+                ]
             else:
                 updated_objects[obj_id] = [closest_center, prev_center[1] + 1, 0]
             current_weight_centers.remove(closest_center)
@@ -244,30 +236,29 @@ while True:
 
     ob_info = updated_objects
 
-
-    num_of_stable_weight_markers = sum(1 for _, center in ob_info.items() if center[2] > 6)
-
+    num_of_stable_weight_markers = sum(
+        1 for _, center in ob_info.items() if center[2] > 6
+    )
 
     cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
 
-
-
     for obj_id, center in ob_info.items():
-        cv2.putText(frame, f"ID: {obj_id}", (center[0][0] - 20, center[0][1] - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        cv2.putText(
+            frame,
+            f"ID: {obj_id}",
+            (center[0][0] - 20, center[0][1] - 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 0, 0),
+            2,
+        )
 
     not_in = 0
     for obj_id, center in ob_info.items():
         if center[1] > 3:
             not_in += 1
 
-
-
-
     data.append(weight_markers_count)
-
-
-
 
     # Find the most frequent count
     most_frequent_count = max(set(data), key=lambda x: data.count(x))
@@ -349,10 +340,23 @@ while True:
 
     # Показываем кадр и маску
     # Set window sizes
-    frame_width = 800
-    frame_height = 600
-    mask_width = 400
-    mask_height = 300
+    # Get screen resolution using GetSystemMetrics
+
+    screen_width = win32api.GetSystemMetrics(0)
+    screen_height = win32api.GetSystemMetrics(1)
+
+    # Calculate frame size to fit screen while maintaining aspect ratio
+    frame_height = int(screen_height * 0.8)  # Use 80% of screen height
+    frame_width = int(frame.shape[1] * frame_height / frame.shape[0])
+
+    # Ensure frame width doesn't exceed screen width
+    if frame_width > screen_width * 0.8:
+        frame_width = int(screen_width * 0.8)
+        frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
+
+    # Calculate mask sizes proportionally
+    mask_width = int(frame_width * 0.25)  # 25% of frame width
+    mask_height = int(mask_width * frame.shape[0] / frame.shape[1])
 
     # Resize images
     frame_resized = cv2.resize(frame, (frame_width, frame_height))
@@ -366,9 +370,8 @@ while True:
 
     # Position windows
     cv2.moveWindow("Frame", 0, 0)
-    cv2.moveWindow("Mask_machine", frame_width, 0)
-    cv2.moveWindow("Mask_weight", frame_width + mask_width, 0)
-
+    cv2.moveWindow("Mask_machine", frame_width + 10, 0)  # Add 10px padding
+    cv2.moveWindow("Mask_weight", frame_width + mask_width + 20, 0)  # Add 20px padding
 
     # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):

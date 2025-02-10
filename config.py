@@ -21,7 +21,6 @@ def get_camera_settings(camera_type):
             "roi_height_weight": 523,
             "video": r"test_videos\vivo_not_stable.mp4",
             "start_time": 3000,
-
         },
         "pixel_not_stable": {
             "lower_hsv_machine": np.array([70, 90, 100]),
@@ -40,7 +39,6 @@ def get_camera_settings(camera_type):
             "roi_height_weight": 520,
             "video": r"test_videos\pixel_not_stable.mp4",
             "start_time": 3000,
-
         },
         "pixel_stable": {
             "lower_hsv_machine": np.array([170, 100, 100]),
@@ -59,7 +57,6 @@ def get_camera_settings(camera_type):
             "roi_height_weight": 1007,
             "video": r"test_videos\pixel_stable.mp4",
             "start_time": 0,
-
         },
     }
     return settings.get(camera_type, "Camera type not found")

@@ -178,7 +178,7 @@ while True:
     for contour in contours_weight:
         # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 300:
+        if area < 200:
             continue
 
         # Получаем прямоугольник, описывающий контур
@@ -215,13 +215,18 @@ while True:
                 min_distance = distance
                 closest_center = center
 
-        if closest_center is not None and min_distance < 50:  # Увеличил порог расстояния
-            updated_objects[obj_id] = [closest_center, prev_center[1] + 1]
+        if closest_center is not None and min_distance < 100:
+            if min_distance < 10:
+                updated_objects[obj_id] = [closest_center, prev_center[1] + 1, prev_center[2] + 1]
+            else:
+                updated_objects[obj_id] = [closest_center, prev_center[1] + 1, 0]
             current_weight_centers.remove(closest_center)
+
         else:
+
             # Если объект не обнаружен в течение 5 кадров, удаляем его
             if prev_center[1] < 5:
-                updated_objects[obj_id] = [prev_center[0], 0]
+                updated_objects[obj_id] = [prev_center[0], 0, 0]
 
     # Add new objects only if they persist for a few frames
     if len(ob_info) == 0:
@@ -234,12 +239,13 @@ while True:
     # Добавляем новые объекты только если есть свободное место (максимум 10 объектов)
     for center in current_weight_centers:
         if len(updated_objects) < 10:
-            updated_objects[next_object_id] = [center, 0]
+            updated_objects[next_object_id] = [center, 0, 0]
             next_object_id += 1
 
     ob_info = updated_objects
 
 
+    num_of_stable_weight_markers = sum(1 for _, center in ob_info.items() if center[2] > 6)
 
 
     cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
@@ -254,7 +260,6 @@ while True:
     for obj_id, center in ob_info.items():
         if center[1] > 3:
             not_in += 1
-    print(len(ob_info) - not_in)
 
 
 
@@ -270,7 +275,7 @@ while True:
     # Display the average count of moving red markers on the frame
     cv2.putText(
         frame,
-        f"Avg weight Markers: {most_frequent_count}",
+        f"Avg weight Markers: {len(ob_info) - num_of_stable_weight_markers}",
         (10, 30),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,

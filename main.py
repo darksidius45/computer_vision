@@ -12,6 +12,9 @@ lower_hsv_machine = camera_settings["lower_hsv_machine"]
 upper_hsv_machine = camera_settings["upper_hsv_machine"]
 
 
+
+
+
 lower_hsv_weight1 = camera_settings["lower_hsv_weight1"]
 upper_hsv_weight1 = camera_settings["upper_hsv_weight1"]
 
@@ -76,12 +79,16 @@ while True:
     # маски для диапазона цветов в HSV
     mask_machine = cv2.inRange(hsv_frame_machine, lower_hsv_machine, upper_hsv_machine)
 
+
+    # mask_allweights = cv2.inRange(hsv_frame_weight, lower_hsv_allweights, upper_hsv_allweights)# маска для определения области для поиска красеых меток
+    
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
+
     mask_weight1 = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
     mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
     mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
 
-    # уменьшения шума
+    # уменьшения шума  
     kernel = np.ones((5, 5), np.uint8)
     mask_machine = cv2.erode(mask_machine, kernel, iterations=1)
     mask_machine = cv2.dilate(mask_machine, kernel, iterations=2)
@@ -191,6 +198,9 @@ while True:
         ):
             current_weight_centers.append(center)
 
+        cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 255, 0), 2)
+        cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
     # Track objects across frames
     for obj_id, prev_center in ob_info.items():
         # Находим ближайший центр в текущем кадре
@@ -203,7 +213,7 @@ while True:
                 min_distance = distance
                 closest_center = center
 
-        if closest_center is not None and min_distance < 100:
+        if closest_center is not None and min_distance < max_distance:
             if min_distance < 10:
                 updated_objects[obj_id] = [
                     closest_center,
@@ -240,7 +250,6 @@ while True:
         1 for _, center in ob_info.items() if center[2] > 6
     )
 
-    cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 0, 255), 2)
 
     for obj_id, center in ob_info.items():
         cv2.putText(
@@ -266,7 +275,7 @@ while True:
     # Display the average count of moving red markers on the frame
     cv2.putText(
         frame,
-        f"Avg weight Markers: {len(ob_info) - num_of_stable_weight_markers}",
+        f"Moving weight: {(len(ob_info) - num_of_stable_weight_markers) * 5}",
         (10, 30),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,

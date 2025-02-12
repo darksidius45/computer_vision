@@ -61,7 +61,9 @@ def get_color_from_video(video_path):
 
             color_image = np.zeros((100, 100, 3), dtype=np.uint8)
             color_image[:, :] = color
+            cv2.namedWindow("Selected Color", cv2.WINDOW_NORMAL)
             cv2.imshow("Selected Color", color_image)
+            cv2.resizeWindow("Selected Color", 200, 200)
 
         elif event == cv2.EVENT_RBUTTONDOWN:
             roi_points.clear()  # Clear previous points
@@ -99,8 +101,21 @@ def get_color_from_video(video_path):
         upper_hsv[1] = cv2.getTrackbarPos("Upper S", "Mask")
         upper_hsv[2] = cv2.getTrackbarPos("Upper V", "Mask")
 
-    cv2.namedWindow("Video")
-    cv2.namedWindow("Mask")
+    cv2.namedWindow("Video", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("Mask", cv2.WINDOW_NORMAL)
+    
+    # Get screen resolution
+    screen_width = 1920  # Default HD width
+    screen_height = 1080  # Default HD height
+    
+    # Set window sizes to fit screen
+    cv2.resizeWindow("Video", screen_width//2, screen_height//2)
+    cv2.resizeWindow("Mask", screen_width//3, screen_height//3)
+    
+    # Position windows
+    cv2.moveWindow("Video", 0, 0)
+    cv2.moveWindow("Mask", screen_width//2, 0)
+
     cv2.createTrackbar("Lower H", "Mask", 0, 179, on_trackbar)
     cv2.createTrackbar("Lower S", "Mask", 0, 255, on_trackbar)
     cv2.createTrackbar("Lower V", "Mask", 0, 255, on_trackbar)

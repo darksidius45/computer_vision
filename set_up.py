@@ -103,18 +103,18 @@ def get_color_from_video(video_path):
 
     cv2.namedWindow("Video", cv2.WINDOW_NORMAL)
     cv2.namedWindow("Mask", cv2.WINDOW_NORMAL)
-    
+
     # Get screen resolution
     screen_width = 1920  # Default HD width
     screen_height = 1080  # Default HD height
-    
+
     # Set window sizes to fit screen
-    cv2.resizeWindow("Video", screen_width//2, screen_height//2)
-    cv2.resizeWindow("Mask", screen_width//3, screen_height//3)
-    
+    cv2.resizeWindow("Video", screen_width // 2, screen_height // 2)
+    cv2.resizeWindow("Mask", screen_width // 3, screen_height // 3)
+
     # Position windows
     cv2.moveWindow("Video", 0, 0)
-    cv2.moveWindow("Mask", screen_width//2, 0)
+    cv2.moveWindow("Mask", screen_width // 2, 0)
 
     cv2.createTrackbar("Lower H", "Mask", 0, 179, on_trackbar)
     cv2.createTrackbar("Lower S", "Mask", 0, 255, on_trackbar)

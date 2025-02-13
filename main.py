@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from config import get_camera_settings
 import win32api
+from machine import machine_trajectory
+from weights import weights_detection
 
 # load all settings
 camera_type = "pixel_stable"
@@ -10,9 +12,6 @@ camera_settings = get_camera_settings(camera_type)
 
 lower_hsv_machine = camera_settings["lower_hsv_machine"]
 upper_hsv_machine = camera_settings["upper_hsv_machine"]
-
-
-
 
 
 lower_hsv_weight1 = camera_settings["lower_hsv_weight1"]
@@ -79,16 +78,15 @@ while True:
     # маски для диапазона цветов в HSV
     mask_machine = cv2.inRange(hsv_frame_machine, lower_hsv_machine, upper_hsv_machine)
 
-
     # mask_allweights = cv2.inRange(hsv_frame_weight, lower_hsv_allweights, upper_hsv_allweights)# маска для определения области для поиска красеых меток
-    
+
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
 
     mask_weight1 = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
     mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
     mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
 
-    # уменьшения шума  
+    # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
     mask_machine = cv2.erode(mask_machine, kernel, iterations=1)
     mask_machine = cv2.dilate(mask_machine, kernel, iterations=2)
@@ -202,150 +200,11 @@ while True:
         cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
     # Track objects across frames
-    for obj_id, prev_center in ob_info.items():
-        # Находим ближайший центр в текущем кадре
-        min_distance = float("inf")
-        closest_center = None
-
-        for center in current_weight_centers:
-            distance = np.linalg.norm(np.array(prev_center[0]) - np.array(center))
-            if distance < min_distance:
-                min_distance = distance
-                closest_center = center
-
-        if closest_center is not None and min_distance < max_distance:
-            if min_distance < 10:
-                updated_objects[obj_id] = [
-                    closest_center,
-                    prev_center[1] + 1,
-                    prev_center[2] + 1,
-                ]
-            else:
-                updated_objects[obj_id] = [closest_center, prev_center[1] + 1, 0]
-            current_weight_centers.remove(closest_center)
-
-        else:
-
-            # Если объект не обнаружен в течение 5 кадров, удаляем его
-            if prev_center[1] < 5:
-                updated_objects[obj_id] = [prev_center[0], 0, 0]
-
-    # Add new objects only if they persist for a few frames
-    if len(ob_info) == 0:
-        next_object_id = 0
-    else:
-        # Очищаем неактивные ID перед добавлением новых
-        active_ids = [id for id, info in updated_objects.items() if info[1] > 0]
-        next_object_id = max(active_ids) + 1 if active_ids else 0
-
-    # Добавляем новые объекты только если есть свободное место (максимум 10 объектов)
-    for center in current_weight_centers:
-        if len(updated_objects) < 10:
-            updated_objects[next_object_id] = [center, 0, 0]
-            next_object_id += 1
-
-    ob_info = updated_objects
-
-    num_of_stable_weight_markers = sum(
-        1 for _, center in ob_info.items() if center[2] > 6
+    ob_info, next_id = weights_detection(
+        frame, current_weight_centers, ob_info, updated_objects, next_id, max_distance
     )
-
-
-    for obj_id, center in ob_info.items():
-        cv2.putText(
-            frame,
-            f"ID: {obj_id}",
-            (center[0][0] - 20, center[0][1] - 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (255, 0, 0),
-            2,
-        )
-
-    not_in = 0
-    for obj_id, center in ob_info.items():
-        if center[1] > 3:
-            not_in += 1
-
-    data.append(weight_markers_count)
-
-    # Find the most frequent count
-    most_frequent_count = max(set(data), key=lambda x: data.count(x))
-
-    # Display the average count of moving red markers on the frame
-    cv2.putText(
-        frame,
-        f"Moving weight: {(len(ob_info) - num_of_stable_weight_markers) * 5}",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 0, 255),
-        2,
-    )
-
     # Обновляем траектории
-    if current_centers:
-        if not trajectories:
-            for center in current_centers:
-                trajectories[next_id] = [center]
-                next_id += 1
-                print(next_id)
-        else:
-            # Связываем текущие центры с существующими траекториями
-            matched_centers = set()
-            matched_trajectories = set()
-
-            for track_id, track_points in trajectories.items():
-                if not track_points:
-                    continue
-                last_point = track_points[-1]
-
-                # Находим ближайший центр для текущей траектории
-                min_dist = float("inf")
-                closest_center = None
-
-                for center in current_centers:
-                    if center in matched_centers:
-                        continue
-                    dist = np.sqrt(
-                        (center[0] - last_point[0]) ** 2
-                        + (center[1] - last_point[1]) ** 2
-                    )
-                    if dist < min_dist and dist < max_distance:
-                        min_dist = dist
-                        closest_center = center
-
-                if closest_center:
-                    trajectories[track_id].append(closest_center)
-                    matched_centers.add(closest_center)
-                    matched_trajectories.add(track_id)
-
-            # Создаем новые траектории для неcвязанных центров
-            for center in current_centers:
-                if center not in matched_centers:
-                    trajectories[next_id] = [center]
-                    next_id += 1
-
-            # Удаляем старые траектории
-            trajectories = {k: v for k, v in trajectories.items() if len(v) > 0}
-
-    # Рисуем траектории
-    colors = [
-        (255, 0, 0),
-        (0, 255, 0),
-        (0, 0, 255),
-        (255, 255, 0),
-        (255, 0, 255),
-    ]  # Разные цвета для разных траекторий   ----- надо фиксить ошбки траекторий
-    for track_id, points in trajectories.items():
-        if len(points) > 1:
-            color = colors[track_id % len(colors)]
-            for i in range(1, len(points)):
-                cv2.line(frame, points[i - 1], points[i], color, 2)
-
-        # Ограничиваем длину траектории
-        if len(points) > 50:
-            trajectories[track_id] = points[-50:]
+    machine_trajectory(frame, current_centers, trajectories, next_id, max_distance)
 
     # Показываем кадр и маску
     # Set window sizes

@@ -38,18 +38,18 @@ start_time = camera_settings["start_time"]
 video = camera_settings["video"]
 
 
-# Загрузка видеофайла
-
+# Загрузка
 cap = cv2.VideoCapture(video)
-cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с 3 секунды
+cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с определённой секунды
 
 
 if not cap.isOpened():
     print("Ошибка: видео не загружено.")
     exit()
 
-
-trajectories = {}  # Словарь для хранения траекторий {id: points}
+tracker = cv2.TrackerCSRT_create() # создаем трекер
+tracked = False
+trajectories = []  # Словарь для хранения траекторий {id: points}
 next_id = 0  # Счетчик для назначения ID объектам
 max_distance = 120
 ob_info = {}  # Максимальное расстояние для связывания точек
@@ -143,8 +143,7 @@ while True:
         current_centers.append(center)
 
         # Рисуем прямоугольник вокруг объекта
-        cv2.rectangle(frame, (abs_x, abs_y), (abs_x + w, abs_y + h), (0, 255, 0), 2)
-        cv2.circle(frame, center, 5, (0, 0, 255), -1)
+        cv2.circle(frame, center, 5, (0, 255, 0), -1)
 
         # Выводим координаты центра
         cv2.putText(
@@ -204,7 +203,7 @@ while True:
         frame, current_weight_centers, ob_info, updated_objects, next_id, max_distance
     )
     # Обновляем траектории
-    machine_trajectory(frame, current_centers, trajectories, next_id, max_distance)
+    tracked = machine_trajectory(frame, current_centers, trajectories, next_id, max_distance, tracker, tracked)
 
     # Показываем кадр и маску
     # Set window sizes
@@ -244,6 +243,6 @@ while True:
     # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):
         break
-
+        
 cap.release()
 cv2.destroyAllWindows()

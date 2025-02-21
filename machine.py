@@ -2,86 +2,31 @@ import cv2
 import numpy as np
 
 
-def machine_trajectory(frame, current_centers, trajectories, next_id, max_distance):
-    if current_centers:
-        if not trajectories:
-            # Initialize new trajectories with KCF trackers for each center
-            for center in current_centers:
-                tracker = cv2.TrackerKCF_create()
-                # Create bounding box around center point
-                x, y = center
-                bbox = (x-20, y-20, 40, 40) # 40x40 box centered on point
-                tracker.init(frame, bbox)
-                
-                trajectories[next_id] = {
-                    'points': [center],
-                    'tracker': tracker
-                }
-                next_id += 1
-        else:
-            # Update existing trajectories using KCF trackers
-            matched_centers = set()
-            matched_trajectories = set()
+def machine_trajectory(frame, current_centers, trajectories, next_id, max_distance, tracker, tracked):
+    if not tracked:
+        if current_centers:
+         for center in current_centers:
+            x = center[0] - 50  # 50 is half of 100 to center the box
+            y = center[1] - 50
+            bbox = (x, y, 100, 100)  # x, y, width, height
+            tracker.init(frame, bbox)
+            tracked = True
 
-            for track_id, track_data in trajectories.items():
-                if not track_data['points']:
-                    continue
-                    
-                # Update tracker
-                success, bbox = track_data['tracker'].update(frame)
-                if success:
-                    # Get center point from bbox
-                    x = int(bbox[0] + bbox[2]/2)
-                    y = int(bbox[1] + bbox[3]/2) 
-                    new_center = (x, y)
-                    
-                    # Find closest detected center to tracked point
-                    min_dist = float("inf")
-                    closest_center = None
+    ok, bbox = tracker.update(frame)           
+    if ok:
+        p1 = (int(bbox[0]), int(bbox[1]))
+        p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+        x = int(bbox[0] + bbox[2]/2)
+        y = int(bbox[1] + bbox[3]/2) 
+        new_center = (x, y)
+        trajectories.append(new_center)
+        cv2.rectangle(frame, p1, p2, (255,0,0), 2, 1)
+        tracked = True
+    else:
+        cv2.putText(frame, "Tracking failure detected", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
+        tracked = False
+        print("Tracking failure detected")
 
-                    for center in current_centers:
-                        if center in matched_centers:
-                            continue
-                        dist = np.sqrt(
-                            (center[0] - new_center[0]) ** 2 
-                            + (center[1] - new_center[1]) ** 2
-                        )
-                        if dist < min_dist and dist < max_distance:
-                            min_dist = dist
-                            closest_center = center
-
-                    if closest_center:
-                        # Update trajectory with detected center
-                        trajectories[track_id]['points'].append(closest_center)
-                        # Reinitialize tracker at new position
-                        x, y = closest_center
-                        bbox = (x-20, y-20, 40, 40)
-                        track_data['tracker'] = cv2.TrackerKCF_create()
-                        track_data['tracker'].init(frame, bbox)
-                        matched_centers.add(closest_center)
-                        matched_trajectories.add(track_id)
-                    else:
-                        # Use tracker prediction if no matching detection
-                        trajectories[track_id]['points'].append(new_center)
-
-            # Create new trajectories for unmatched centers
-            for center in current_centers:
-                if center not in matched_centers:
-                    tracker = cv2.TrackerKCF_create()
-                    x, y = center
-                    bbox = (x-20, y-20, 40, 40)
-                    tracker.init(frame, bbox)
-                    
-                    trajectories[next_id] = {
-                        'points': [center],
-                        'tracker': tracker
-                    }
-                    next_id += 1
-
-            # Remove old trajectories
-            trajectories = {k: v for k, v in trajectories.items() if len(v['points']) > 0}
-
-    # Draw trajectories
     colors = [
         (255, 0, 0),
         (0, 255, 0),
@@ -89,13 +34,17 @@ def machine_trajectory(frame, current_centers, trajectories, next_id, max_distan
         (255, 255, 0),
         (255, 0, 255),
     ]  # Different colors for different trajectories
-    for track_id, track_data in trajectories.items():
-        points = track_data['points']
-        if len(points) > 1:
-            color = colors[track_id % len(colors)]
-            for i in range(1, len(points)):
-                cv2.line(frame, points[i - 1], points[i], color, 2)
 
-        # Limit trajectory length
-        if len(points) > 50:
-            trajectories[track_id]['points'] = points[-50:]
+    # Draw trajectory lines
+    if len(trajectories) > 1:
+        color = colors[2]
+        for i in range(1, len(trajectories)):
+            pt1 = tuple(map(int, trajectories[i-1]))
+            pt2 = tuple(map(int, trajectories[i]))
+            cv2.line(frame, pt1, pt2, color, 2)
+
+    # Limit trajectory length
+    if len(trajectories) > 50:
+        trajectories = trajectories[-50:]
+
+    return tracked

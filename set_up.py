@@ -8,7 +8,7 @@ scale = 1.0
 zoom_pt = None
 
 
-camera_type = "pixel_stable"
+camera_type = "rasberry"
 camera_settings = get_camera_settings(camera_type)
 video_path = camera_settings["video"]
 

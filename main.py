@@ -6,7 +6,7 @@ from machine import machine_trajectory
 from weights import weights_detection
 
 # load all settings
-camera_type = "pixel_stable"
+camera_type = "rasberry"
 camera_settings = get_camera_settings(camera_type)
 
 
@@ -44,7 +44,7 @@ cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с о�
 
 
 if not cap.isOpened():
-    print("Ошибка: видео не загружено.")
+    print("Error: Could not open video.")
     exit()
 
 tracker = cv2.TrackerCSRT_create() # создаем трекер
@@ -58,8 +58,7 @@ ob_info = {}  # Максимальное расстояние для связы�
 while True:
     ret, frame = cap.read()
     if not ret:
-        break  # Выход, если видео закончилось
-
+        break
     # Extract ROI from frame
     roi = frame[
         roi_y_machine : roi_y_machine + roi_height_machine,
@@ -82,9 +81,9 @@ while True:
 
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
 
-    mask_weight1 = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
-    mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
-    mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
+    mask_weight = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
+    # mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
+    # mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
 
     # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
@@ -170,16 +169,16 @@ while True:
     for contour in contours_weight:
         # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 200:
+        if area < 600:
             continue
 
         # Получаем прямоугольник, описывающий контур
         (x, y, w, h) = cv2.boundingRect(contour)
 
         # Проверяем соотношение сторон и площадь для фильтрации ложных срабатываний
-        aspect_ratio = float(w) / h
-        if aspect_ratio < 0.5 or aspect_ratio > 2.0:
-            continue
+        # aspect_ratio = float(w) / h
+        # if aspect_ratio < 0.5 or aspect_ratio > 2.0:
+        #     continue
 
         # Convert coordinates to original frame coordinates
         abs_x = x + roi_x_weight
@@ -221,24 +220,22 @@ while True:
         frame_width = int(screen_width * 0.8)
         frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
 
-    # Calculate mask sizes proportionally
-    mask_width = int(frame_width * 0.25)  # 25% of frame width
-    mask_height = int(mask_width * frame.shape[0] / frame.shape[1])
-
-    # Resize images
+    # Resize frame only
     frame_resized = cv2.resize(frame, (frame_width, frame_height))
-    mask_machine_resized = cv2.resize(mask_machine, (mask_width, mask_height))
-    mask_weight_resized = cv2.resize(mask_weight, (mask_width, mask_height))
 
-    # Show resized windows
+    # Resize masks to half size
+    mask_machine_resized = cv2.resize(mask_machine, (mask_machine.shape[1]//2, mask_machine.shape[0]//2))
+    mask_weight_resized = cv2.resize(mask_weight, (mask_weight.shape[1]//2, mask_weight.shape[0]//2))
+
+    # Show windows
     cv2.imshow("Frame", frame_resized)
-    cv2.imshow("Mask_machine", mask_machine_resized)
-    cv2.imshow("Mask_weight", mask_weight_resized)
+    cv2.imshow("Mask_machine", mask_machine_resized)  # Show resized mask
+    cv2.imshow("Mask_weight", mask_weight_resized)    # Show resized mask
 
     # Position windows
     cv2.moveWindow("Frame", 0, 0)
     cv2.moveWindow("Mask_machine", frame_width + 10, 0)  # Add 10px padding
-    cv2.moveWindow("Mask_weight", frame_width + mask_width + 20, 0)  # Add 20px padding
+    cv2.moveWindow("Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0)  # Add 20px padding
 
     # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):

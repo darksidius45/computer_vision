@@ -5,12 +5,14 @@ import numpy as np
 def machine_trajectory(frame, current_centers, trajectories, next_id, max_distance, tracker, tracked):
     if not tracked:
         if current_centers:
-         for center in current_centers:
-            x = center[0] - 50  # 50 is half of 100 to center the box
-            y = center[1] - 50
-            bbox = (x, y, 100, 100)  # x, y, width, height
-            tracker.init(frame, bbox)
-            tracked = True
+            for center in current_centers:
+                x = center[0] - 50  # 50 is half of 100 to center the box
+                y = center[1] - 50
+                bbox = (x, y, 100, 100)  # x, y, width, height
+                tracker.init(frame, bbox)
+                tracked = True
+        else:
+            return False
 
     ok, bbox = tracker.update(frame)           
     if ok:

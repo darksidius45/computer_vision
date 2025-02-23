@@ -208,7 +208,15 @@ while True:
     )
     # Обновляем траектории
     tracked = machine_trajectory(
-        frame, current_centers, trajectories, min_hight, max_hight, rep_dist, set_timer, tracker, tracked
+        frame,
+        current_centers,
+        trajectories,
+        min_hight,
+        max_hight,
+        rep_dist,
+        set_timer,
+        tracker,
+        tracked,
     )
 
     # Показываем кадр и маску

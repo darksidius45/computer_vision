@@ -4,15 +4,15 @@ import time
 
 
 def machine_trajectory(
-    frame, 
-    current_centers, 
+    frame,
+    current_centers,
     trajectories,
-    min_hight, 
-    max_hight, 
+    min_hight,
+    max_hight,
     MIN_VERTICAL_DISTANCE,
-    REST_TIME_SET, 
-    tracker, 
-    tracked
+    REST_TIME_SET,
+    tracker,
+    tracked,
 ):
     # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
@@ -22,7 +22,7 @@ def machine_trajectory(
         machine_trajectory.prev_y = None
         machine_trajectory.moving_up = False
         machine_trajectory.lowest_point = min_hight
-        machine_trajectory.highest_point = max_hight
+        machine_trajectory.highest_point = min_hight
 
     if not tracked:
         if current_centers:
@@ -49,19 +49,23 @@ def machine_trajectory(
         if machine_trajectory.prev_y is not None:
             # Calculate vertical movement
             vertical_movement = machine_trajectory.prev_y - y
-            
+
             # Define a threshold for minimum movement to avoid noise
             MOVEMENT_THRESHOLD = 5
-            
+
             if abs(vertical_movement) > MOVEMENT_THRESHOLD:
                 if vertical_movement > 0:
                     # Moving up
                     if not machine_trajectory.moving_up:
                         machine_trajectory.moving_up = True
                         machine_trajectory.lowest_point = y
-                        if machine_trajectory.lowest_point - machine_trajectory.highest_point > MIN_VERTICAL_DISTANCE:
+                        vertical_distance = abs(
+                            machine_trajectory.highest_point
+                            - machine_trajectory.lowest_point
+                        )
+                        if vertical_distance > MIN_VERTICAL_DISTANCE:
                             machine_trajectory.reps += 1
-                        
+
                     cv2.putText(
                         frame,
                         "Moving Up",
@@ -74,12 +78,15 @@ def machine_trajectory(
                 else:
                     # Moving down
                     if machine_trajectory.moving_up:
-                        # Check if completed a rep
-                        vertical_distance = abs(machine_trajectory.highest_point - y)
+                        machine_trajectory.moving_up = False
+                        machine_trajectory.highest_point = y
+                        vertical_distance = abs(
+                            machine_trajectory.highest_point
+                            - machine_trajectory.lowest_point
+                        )
                         if vertical_distance > MIN_VERTICAL_DISTANCE:
                             machine_trajectory.reps += 1
-                        machine_trajectory.moving_up = False
-                        
+
                     cv2.putText(
                         frame,
                         "Moving Down",

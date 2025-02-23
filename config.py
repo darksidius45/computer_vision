@@ -22,7 +22,6 @@ def get_camera_settings(camera_type):
             "video": r"test_videos\vivo_not_stable.mp4",
             "start_time": 3000,
         },
-
         "pixel_not_stable": {
             "lower_hsv_machine": np.array([70, 90, 100]),
             "upper_hsv_machine": np.array([85, 170, 180]),
@@ -41,7 +40,6 @@ def get_camera_settings(camera_type):
             "video": r"test_videos\pixel_not_stable.mp4",
             "start_time": 3000,
         },
-        
         "pixel_stable": {
             "lower_hsv_machine": np.array([170, 100, 100]),
             "upper_hsv_machine": np.array([180, 255, 255]),
@@ -60,7 +58,6 @@ def get_camera_settings(camera_type):
             "video": r"test_videos\pixel_stable.mp4",
             "start_time": 0,
         },
-
         "rasberry": {
             "lower_hsv_machine": np.array([170, 124, 56]),
             "upper_hsv_machine": np.array([180, 255, 118]),
@@ -78,6 +75,10 @@ def get_camera_settings(camera_type):
             "roi_height_weight": 1094,
             "video": r"test_videos\rasberry1.mp4",
             "start_time": 0,
+            "max_hight": 88,
+            "min_hight": 1000,
+            "set_timer": 20,
+            "rep_dist": 200,
         },
     }
     return settings.get(camera_type, "Camera type not found")

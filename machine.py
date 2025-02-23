@@ -2,18 +2,27 @@ import cv2
 import numpy as np
 import time
 
-def machine_trajectory(frame, current_centers, trajectories, next_id, max_distance, tracker, tracked):
-    # Константы для определения повторения и подхода
-    MIN_VERTICAL_DISTANCE = 50  # Минимальное вертикальное расстояние для засчитывания повторения
-    REST_TIME_THRESHOLD = 10  # Время отдыха в секундах для нового подхода
-    
+
+def machine_trajectory(
+    frame, 
+    current_centers, 
+    trajectories,
+    min_hight, 
+    max_hight, 
+    MIN_VERTICAL_DISTANCE,
+    REST_TIME_SET, 
+    tracker, 
+    tracked
+):
     # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
         machine_trajectory.reps = 0
         machine_trajectory.sets = 1
-        machine_trajectory.last_rep_time = time.time()
+        machine_trajectory.last_rep_time = REST_TIME_SET
         machine_trajectory.prev_y = None
         machine_trajectory.moving_up = False
+        machine_trajectory.lowest_point = min_hight
+        machine_trajectory.highest_point = max_hight
 
     if not tracked:
         if current_centers:
@@ -26,51 +35,113 @@ def machine_trajectory(frame, current_centers, trajectories, next_id, max_distan
         else:
             return False
 
-    ok, bbox = tracker.update(frame)           
+    ok, bbox = tracker.update(frame)
     if ok:
         p1 = (int(bbox[0]), int(bbox[1]))
         p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-        x = int(bbox[0] + bbox[2]/2)
-        y = int(bbox[1] + bbox[3]/2) 
+        x = int(bbox[0] + bbox[2] / 2)
+        y = int(bbox[1] + bbox[3] / 2)
         new_center = (x, y)
         trajectories.append(new_center)
-        cv2.rectangle(frame, p1, p2, (255,0,0), 2, 1)
-        
+        cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
+
         # Подсчет повторений
         if machine_trajectory.prev_y is not None:
-            if y < machine_trajectory.prev_y - MIN_VERTICAL_DISTANCE and not machine_trajectory.moving_up:
-                machine_trajectory.moving_up = True
-            elif y > machine_trajectory.prev_y + MIN_VERTICAL_DISTANCE and machine_trajectory.moving_up:
-                machine_trajectory.moving_up = False
-                machine_trajectory.reps += 1
-                current_time = time.time()
-                
-                # Проверка на новый подход
-                if current_time - machine_trajectory.last_rep_time > REST_TIME_THRESHOLD:
-                    machine_trajectory.sets += 1
-                    machine_trajectory.reps = 1
-                
-                machine_trajectory.last_rep_time = current_time
-                
+            # Calculate vertical movement
+            vertical_movement = machine_trajectory.prev_y - y
+            
+            # Define a threshold for minimum movement to avoid noise
+            MOVEMENT_THRESHOLD = 5
+            
+            if abs(vertical_movement) > MOVEMENT_THRESHOLD:
+                if vertical_movement > 0:
+                    # Moving up
+                    if not machine_trajectory.moving_up:
+                        machine_trajectory.moving_up = True
+                        machine_trajectory.lowest_point = y
+                        if machine_trajectory.lowest_point - machine_trajectory.highest_point > MIN_VERTICAL_DISTANCE:
+                            machine_trajectory.reps += 1
+                        
+                    cv2.putText(
+                        frame,
+                        "Moving Up",
+                        (50, 150),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 255, 0),
+                        2,
+                    )
+                else:
+                    # Moving down
+                    if machine_trajectory.moving_up:
+                        # Check if completed a rep
+                        vertical_distance = abs(machine_trajectory.highest_point - y)
+                        if vertical_distance > MIN_VERTICAL_DISTANCE:
+                            machine_trajectory.reps += 1
+                        machine_trajectory.moving_up = False
+                        
+                    cv2.putText(
+                        frame,
+                        "Moving Down",
+                        (50, 150),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        2,
+                    )
+            else:
+                # Staying relatively still
+                cv2.putText(
+                    frame,
+                    "Stationary",
+                    (50, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (255, 255, 255),
+                    2,
+                )
+
         machine_trajectory.prev_y = y
         tracked = True
     else:
-        cv2.putText(frame, "Tracking failure detected", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
+        cv2.putText(
+            frame,
+            "Tracking failure detected",
+            (100, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.75,
+            (0, 0, 255),
+            2,
+        )
         tracked = False
         print("Tracking failure detected")
 
     # Отображение информации о подходах и повторениях
-    cv2.putText(frame, f"Set: {machine_trajectory.sets}", (50,50), 
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-    cv2.putText(frame, f"Reps: {machine_trajectory.reps}", (50,100), 
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+    cv2.putText(
+        frame,
+        f"Set: {machine_trajectory.sets}",
+        (50, 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 255, 255),
+        2,
+    )
+    cv2.putText(
+        frame,
+        f"Reps: {machine_trajectory.reps // 2}",
+        (50, 100),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 255, 255),
+        2,
+    )
 
     # Отрисовка траектории
     if len(trajectories) > 1:
         for i in range(1, len(trajectories)):
-            pt1 = tuple(map(int, trajectories[i-1]))
+            pt1 = tuple(map(int, trajectories[i - 1]))
             pt2 = tuple(map(int, trajectories[i]))
-            cv2.line(frame, pt1, pt2, (0,0,255), 2)
+            cv2.line(frame, pt1, pt2, (0, 0, 255), 2)
 
     # Ограничение длины траектории
     if len(trajectories) > 50:

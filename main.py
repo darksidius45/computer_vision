@@ -9,32 +9,37 @@ from weights import weights_detection
 camera_type = "rasberry"
 camera_settings = get_camera_settings(camera_type)
 
-
+# цветовые диапазоны для метки на тренажере
 lower_hsv_machine = camera_settings["lower_hsv_machine"]
 upper_hsv_machine = camera_settings["upper_hsv_machine"]
 
-
+# цветовые диапазоны для меток весов
 lower_hsv_weight1 = camera_settings["lower_hsv_weight1"]
 upper_hsv_weight1 = camera_settings["upper_hsv_weight1"]
-
-
 lower_hsv_weight2 = camera_settings["lower_hsv_weight2"]
 upper_hsv_weight2 = camera_settings["upper_hsv_weight2"]
 
-
+# диапазон для метки на тренажёре
 roi_x_machine = camera_settings["roi_x_machine"]
 roi_y_machine = camera_settings["roi_y_machine"]
 roi_width_machine = camera_settings["roi_width_machine"]
 roi_height_machine = camera_settings["roi_height_machine"]
 
-
+# диапазон для меток на весах
 roi_x_weight = camera_settings["roi_x_weight"]
 roi_y_weight = camera_settings["roi_y_weight"]
 roi_width_weight = camera_settings["roi_width_weight"]
 roi_height_weight = camera_settings["roi_height_weight"]
 
-
+# настройки под тренажёр
 start_time = camera_settings["start_time"]
+
+max_hight = camera_settings["max_hight"]
+min_hight = camera_settings["min_hight"]
+
+set_timer = camera_settings["set_timer"]
+rep_dist = camera_settings["rep_dist"]
+
 video = camera_settings["video"]
 
 
@@ -47,7 +52,7 @@ if not cap.isOpened():
     print("Error: Could not open video.")
     exit()
 
-tracker = cv2.TrackerCSRT_create() # создаем трекер
+tracker = cv2.TrackerCSRT_create()  # создаем трекер
 tracked = False
 trajectories = []  # Словарь для хранения траекторий {id: points}
 next_id = 0  # Счетчик для назначения ID объектам
@@ -202,7 +207,9 @@ while True:
         frame, current_weight_centers, ob_info, updated_objects, next_id, max_distance
     )
     # Обновляем траектории
-    tracked = machine_trajectory(frame, current_centers, trajectories, next_id, max_distance, tracker, tracked)
+    tracked = machine_trajectory(
+        frame, current_centers, trajectories, min_hight, max_hight, rep_dist, set_timer, tracker, tracked
+    )
 
     # Показываем кадр и маску
     # Set window sizes
@@ -224,22 +231,28 @@ while True:
     frame_resized = cv2.resize(frame, (frame_width, frame_height))
 
     # Resize masks to half size
-    mask_machine_resized = cv2.resize(mask_machine, (mask_machine.shape[1]//2, mask_machine.shape[0]//2))
-    mask_weight_resized = cv2.resize(mask_weight, (mask_weight.shape[1]//2, mask_weight.shape[0]//2))
+    mask_machine_resized = cv2.resize(
+        mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
+    )
+    mask_weight_resized = cv2.resize(
+        mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
+    )
 
     # Show windows
     cv2.imshow("Frame", frame_resized)
     cv2.imshow("Mask_machine", mask_machine_resized)  # Show resized mask
-    cv2.imshow("Mask_weight", mask_weight_resized)    # Show resized mask
+    cv2.imshow("Mask_weight", mask_weight_resized)  # Show resized mask
 
     # Position windows
     cv2.moveWindow("Frame", 0, 0)
     cv2.moveWindow("Mask_machine", frame_width + 10, 0)  # Add 10px padding
-    cv2.moveWindow("Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0)  # Add 20px padding
+    cv2.moveWindow(
+        "Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0
+    )  # Add 20px padding
 
     # Выход по нажатию клавиши q
     if cv2.waitKey(30) & 0xFF == ord("q"):
         break
-        
+
 cap.release()
 cv2.destroyAllWindows()

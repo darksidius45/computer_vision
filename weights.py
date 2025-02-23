@@ -44,11 +44,11 @@ def weights_detection(
     else:
         # Очищаем неактивные ID перед добавлением новых
         active_ids = [
-            object_id 
-            for object_id, object_info in updated_objects.items() 
+            object_id
+            for object_id, object_info in updated_objects.items()
             if object_info[1] > 0
         ]
-        
+
         # Set next ID to be one more than highest active ID, or 0 if no active objects
         next_object_id = max(active_ids) + 1 if active_ids else 0
 

@@ -176,9 +176,9 @@ while True:
         (x, y, w, h) = cv2.boundingRect(contour)
 
         # Проверяем соотношение сторон и площадь для фильтрации ложных срабатываний
-        # aspect_ratio = float(w) / h
-        # if aspect_ratio < 0.5 or aspect_ratio > 2.0:
-        #     continue
+        aspect_ratio = float(w) / h
+        if aspect_ratio < 3.0:
+            continue
 
         # Convert coordinates to original frame coordinates
         abs_x = x + roi_x_weight

@@ -13,16 +13,22 @@ def machine_trajectory(
     REST_TIME_SET,
     tracker,
     tracked,
+    exercises,
+    current_time,
+    weight
 ):
     # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
         machine_trajectory.reps = 0
         machine_trajectory.sets = 1
-        machine_trajectory.last_rep_time = REST_TIME_SET
+        machine_trajectory.reps_info = []
         machine_trajectory.prev_y = None
         machine_trajectory.moving_up = False
         machine_trajectory.lowest_point = min_hight
         machine_trajectory.highest_point = min_hight
+        machine_trajectory.break_timer = 0
+        machine_trajectory.is_training = False
+        machine_trajectory.weights = []
 
     if not tracked:
         if current_centers:
@@ -33,7 +39,7 @@ def machine_trajectory(
                 tracker.init(frame, bbox)
                 tracked = True
         else:
-            return False
+            return False, exercises
 
     ok, bbox = tracker.update(frame)
     if ok:
@@ -57,6 +63,8 @@ def machine_trajectory(
                 if vertical_movement > 0:
                     # Moving up
                     if not machine_trajectory.moving_up:
+                        machine_trajectory.is_training = True
+                        machine_trajectory.break_timer = 0
                         machine_trajectory.moving_up = True
                         machine_trajectory.lowest_point = y
                         vertical_distance = abs(
@@ -65,6 +73,11 @@ def machine_trajectory(
                         )
                         if vertical_distance > MIN_VERTICAL_DISTANCE:
                             machine_trajectory.reps += 1
+                            if machine_trajectory.weights:
+                                most_common_weight = max(set(machine_trajectory.weights), key=machine_trajectory.weights.count)
+                                machine_trajectory.reps_info.append([most_common_weight, vertical_distance / ((min_hight - max_hight) / 100)])
+                                machine_trajectory.weights = []
+                    machine_trajectory.weights.append(weight)
 
                     cv2.putText(
                         frame,
@@ -87,6 +100,8 @@ def machine_trajectory(
                         if vertical_distance > MIN_VERTICAL_DISTANCE:
                             machine_trajectory.reps += 1
 
+                    machine_trajectory.weights.append(weight)
+
                     cv2.putText(
                         frame,
                         "Moving Down",
@@ -98,6 +113,23 @@ def machine_trajectory(
                     )
             else:
                 # Staying relatively still
+                if abs(y - min_hight) < 100 and machine_trajectory.is_training:
+                    if machine_trajectory.break_timer == 0:
+                        machine_trajectory.break_timer = time.time()
+                    timer = time.time() - machine_trajectory.break_timer
+                    if timer > REST_TIME_SET:
+                        if machine_trajectory.weights:
+                            most_common_weight = max(set(machine_trajectory.weights), key=machine_trajectory.weights.count)
+                            machine_trajectory.reps_info.append([most_common_weight, 800 / ((min_hight - max_hight) / 100)])
+                            machine_trajectory.weights = []
+                        exercises[f"{machine_trajectory.sets}"] = machine_trajectory.reps_info
+                        machine_trajectory.reps_info = []
+                        machine_trajectory.sets += 1
+                        machine_trajectory.is_training = False
+                        machine_trajectory.reps = 0
+                
+                    cv2.putText(frame, f"Break timer: {timer:.2f}s", (frame.shape[1] - 300, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    
                 cv2.putText(
                     frame,
                     "Stationary",
@@ -154,4 +186,4 @@ def machine_trajectory(
     if len(trajectories) > 50:
         trajectories = trajectories[-50:]
 
-    return tracked
+    return tracked, exercises

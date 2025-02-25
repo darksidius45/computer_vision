@@ -90,4 +90,4 @@ def weights_detection(
         (0, 0, 255),
         2,
     )
-    return ob_info, next_object_id
+    return ob_info, next_object_id, (len(ob_info) - num_of_stable_weight_markers) * 5

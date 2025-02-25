@@ -4,6 +4,7 @@ from config import get_camera_settings
 import win32api
 from machine import machine_trajectory
 from weights import weights_detection
+import time
 
 # load all settings
 camera_type = "rasberry"
@@ -58,12 +59,17 @@ trajectories = []  # Словарь для хранения траекторий
 next_id = 0  # Счетчик для назначения ID объектам
 max_distance = 120
 ob_info = {}  # Максимальное расстояние для связывания точек
+exercises = {}
 
+start_time = time.time()
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
+
+    elapsed_time = time.time() - start_time
+    
     # Extract ROI from frame
     roi = frame[
         roi_y_machine : roi_y_machine + roi_height_machine,
@@ -203,11 +209,12 @@ while True:
         cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
     # Track objects across frames
-    ob_info, next_id = weights_detection(
+    ob_info, next_id, weight = weights_detection(
         frame, current_weight_centers, ob_info, updated_objects, next_id, max_distance
     )
+
     # Обновляем траектории
-    tracked = machine_trajectory(
+    tracked, exercises = machine_trajectory(
         frame,
         current_centers,
         trajectories,
@@ -217,6 +224,9 @@ while True:
         set_timer,
         tracker,
         tracked,
+        exercises,
+        elapsed_time,
+        weight
     )
 
     # Показываем кадр и маску
@@ -242,6 +252,8 @@ while True:
     mask_machine_resized = cv2.resize(
         mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
     )
+
+
     mask_weight_resized = cv2.resize(
         mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
     )
@@ -264,3 +276,5 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+
+print(exercises)

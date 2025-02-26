@@ -59,7 +59,7 @@ trajectories = []  # Словарь для хранения траекторий
 next_id = 0  # Счетчик для назначения ID объектам
 max_distance = 120
 ob_info = {}  # Максимальное расстояние для связывания точек
-exercises = {}
+exercises = {"1": []}
 
 start_time = time.time()
 
@@ -69,7 +69,7 @@ while True:
         break
 
     elapsed_time = time.time() - start_time
-    
+
     # Extract ROI from frame
     roi = frame[
         roi_y_machine : roi_y_machine + roi_height_machine,
@@ -226,7 +226,7 @@ while True:
         tracked,
         exercises,
         elapsed_time,
-        weight
+        weight,
     )
 
     # Показываем кадр и маску
@@ -252,7 +252,6 @@ while True:
     mask_machine_resized = cv2.resize(
         mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
     )
-
 
     mask_weight_resized = cv2.resize(
         mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)

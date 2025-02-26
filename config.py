@@ -79,6 +79,10 @@ def get_camera_settings(camera_type):
             "min_hight": 1000,
             "set_timer": 20,
             "rep_dist": 200,
+            "roi_x_movement": 1194,
+            "roi_y_movement": 958,
+            "roi_width_movement": 348,
+            "roi_height_movement": 116,
         },
     }
     return settings.get(camera_type, "Camera type not found")

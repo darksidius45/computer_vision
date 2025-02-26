@@ -15,13 +15,12 @@ def machine_trajectory(
     tracked,
     exercises,
     current_time,
-    weight
+    weight,
 ):
     # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
         machine_trajectory.reps = 0
         machine_trajectory.sets = 1
-        machine_trajectory.reps_info = []
         machine_trajectory.prev_y = None
         machine_trajectory.moving_up = False
         machine_trajectory.lowest_point = min_hight
@@ -74,8 +73,17 @@ def machine_trajectory(
                         if vertical_distance > MIN_VERTICAL_DISTANCE:
                             machine_trajectory.reps += 1
                             if machine_trajectory.weights:
-                                most_common_weight = max(set(machine_trajectory.weights), key=machine_trajectory.weights.count)
-                                machine_trajectory.reps_info.append([most_common_weight, vertical_distance / ((min_hight - max_hight) / 100)])
+                                most_common_weight = max(
+                                    set(machine_trajectory.weights),
+                                    key=machine_trajectory.weights.count,
+                                )
+                                exercises[f"{machine_trajectory.sets}"].append(
+                                    [
+                                        most_common_weight,
+                                        vertical_distance
+                                        / ((min_hight - max_hight) / 100),
+                                    ]
+                                )
                                 machine_trajectory.weights = []
                     machine_trajectory.weights.append(weight)
 
@@ -119,17 +127,33 @@ def machine_trajectory(
                     timer = time.time() - machine_trajectory.break_timer
                     if timer > REST_TIME_SET:
                         if machine_trajectory.weights:
-                            most_common_weight = max(set(machine_trajectory.weights), key=machine_trajectory.weights.count)
-                            machine_trajectory.reps_info.append([most_common_weight, 800 / ((min_hight - max_hight) / 100)])
+                            most_common_weight = max(
+                                set(machine_trajectory.weights),
+                                key=machine_trajectory.weights.count,
+                            )
+                            exercises[f"{machine_trajectory.sets}"].append(
+                                [
+                                    most_common_weight,
+                                    800 / ((min_hight - max_hight) / 100),
+                                ]
+                            )
                             machine_trajectory.weights = []
-                        exercises[f"{machine_trajectory.sets}"] = machine_trajectory.reps_info
-                        machine_trajectory.reps_info = []
+
                         machine_trajectory.sets += 1
+                        exercises[f"{machine_trajectory.sets}"] = []
                         machine_trajectory.is_training = False
                         machine_trajectory.reps = 0
-                
-                    cv2.putText(frame, f"Break timer: {timer:.2f}s", (frame.shape[1] - 300, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                    
+
+                    cv2.putText(
+                        frame,
+                        f"Break timer: {timer:.2f}s",
+                        (frame.shape[1] - 300, 100),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (255, 255, 255),
+                        2,
+                    )
+
                 cv2.putText(
                     frame,
                     "Stationary",

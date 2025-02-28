@@ -1,10 +1,19 @@
 import cv2
 import numpy as np
 import time
+from config import get_camera_settings
+import time
 
+# load all settings
+camera_type = "rasberry"
+camera_settings = get_camera_settings(camera_type)
+
+# диапазон для метки на тренажёре
+roi_x_machine = camera_settings["roi_x_machine"]
+roi_y_machine = camera_settings["roi_y_machine"]
 
 def machine_trajectory(
-    frame,
+    roi,
     current_centers,
     trajectories,
     min_hight,
@@ -14,10 +23,10 @@ def machine_trajectory(
     tracker,
     tracked,
     exercises,
-    current_time,
+    frame,
     weight,
 ):
-    # Статические переменные для подсчета
+      # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
         machine_trajectory.reps = 0
         machine_trajectory.sets = 1
@@ -28,25 +37,24 @@ def machine_trajectory(
         machine_trajectory.break_timer = 0
         machine_trajectory.is_training = False
         machine_trajectory.weights = []
-
     if not tracked:
         if current_centers:
             for center in current_centers:
-                x = center[0] - 50
-                y = center[1] - 50
-                bbox = (x, y, 100, 100)
-                tracker.init(frame, bbox)
+                x = (center[0] - roi_x_machine) // 2 - 25
+                y = (center[1] - roi_y_machine) // 2 - 25
+                bbox = (x, y, 50, 50)
+                tracker.init(roi, bbox)
                 tracked = True
         else:
             return False, exercises
 
-    ok, bbox = tracker.update(frame)
+    ok, bbox = tracker.update(roi)
     if ok:
-        p1 = (int(bbox[0]), int(bbox[1]))
-        p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+        p1 = (int(bbox[0] * 2 + roi_x_machine), int(bbox[1] * 2 + roi_y_machine))
+        p2 = (int(bbox[0] * 2 + roi_x_machine + bbox[2] * 2), int(bbox[1] * 2 + roi_y_machine + bbox[3] * 2))
         x = int(bbox[0] + bbox[2] / 2)
         y = int(bbox[1] + bbox[3] / 2)
-        new_center = (x, y)
+        new_center = (x * 2 + roi_x_machine, y * 2 + roi_y_machine)
         trajectories.append(new_center)
         cv2.rectangle(frame, p1, p2, (255, 0, 0), 2, 1)
 

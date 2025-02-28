@@ -21,9 +21,9 @@ lower_hsv_weight2 = camera_settings["lower_hsv_weight2"]
 upper_hsv_weight2 = camera_settings["upper_hsv_weight2"]
 
 # диапазон для метки на тренажёре
-roi_x_machine = camera_settings["roi_x_machine"]
-roi_y_machine = camera_settings["roi_y_machine"]
-roi_width_machine = camera_settings["roi_width_machine"]
+roi_x_machine = camera_settings["roi_x_machine"] 
+roi_y_machine = camera_settings["roi_y_machine"] 
+roi_width_machine = camera_settings["roi_width_machine"] 
 roi_height_machine = camera_settings["roi_height_machine"]
 
 # диапазон для меток на весах
@@ -44,16 +44,38 @@ rep_dist = camera_settings["rep_dist"]
 video = camera_settings["video"]
 
 
+
 # Загрузка
 cap = cv2.VideoCapture(video)
-cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с определённой секунды
-
+cap.set(cv2.CAP_PROP_POS_MSEC, 1000)  # включаем видео с определённой секунды
 
 if not cap.isOpened():
     print("Error: Could not open video.")
     exit()
 
-tracker = cv2.TrackerCSRT_create()  # создаем трекер
+# Create custom parameters for the CSRT tracker
+params = cv2.TrackerCSRT_Params()
+params.padding = 3.0
+params.template_size = 125  # Reduced template size
+params.gsl_sigma = 1.0
+params.hog_orientations = 3 # Reduced HOG orientations
+params.num_hog_channels_used = 2  # Reduced HOG channels used
+params.hog_clip = 0.2
+params.filter_lr = 0.02
+params.weights_lr = 0.02
+params.admm_iterations = 3 # Reduced ADMM iterations
+params.number_of_scales = 50 # Reduced number of scales
+params.scale_sigma_factor = 0.25
+params.scale_model_max_area = 300
+params.scale_lr = 0.05  # Increased scale learning rate
+params.scale_step = 1.02
+params.histogram_bins = 16
+params.background_ratio = 4
+params.histogram_lr = 0.04
+
+# Create tracker with custom parameters
+tracker = cv2.TrackerCSRT_create(params)
+
 tracked = False
 trajectories = []  # Словарь для хранения траекторий {id: points}
 next_id = 0  # Счетчик для назначения ID объектам
@@ -62,23 +84,25 @@ ob_info = {}  # Максимальное расстояние для связы�
 exercises = {"1": []}
 
 start_time = time.time()
+prev_frame_time = start_time
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
+    
 
     elapsed_time = time.time() - start_time
 
     # Extract ROI from frame
     roi = frame[
-        roi_y_machine : roi_y_machine + roi_height_machine,
-        roi_x_machine : roi_x_machine + roi_width_machine,
+        roi_y_machine: roi_y_machine + roi_height_machine,
+        roi_x_machine: roi_x_machine + roi_width_machine,
     ]
 
     roi_weight = frame[
-        roi_y_weight : roi_y_weight + roi_height_weight,
-        roi_x_weight : roi_x_weight + roi_width_weight,
+        roi_y_weight: roi_y_weight + roi_height_weight,
+        roi_x_weight: roi_x_weight + roi_width_weight,
     ]
     # Конвертируем ROI в HSV
 
@@ -88,13 +112,11 @@ while True:
     # маски для диапазона цветов в HSV
     mask_machine = cv2.inRange(hsv_frame_machine, lower_hsv_machine, upper_hsv_machine)
 
-    # mask_allweights = cv2.inRange(hsv_frame_weight, lower_hsv_allweights, upper_hsv_allweights)# маска для определения области для поиска красеых меток
-
     # создаем 2 маски для красного цвета в разных диапазонах из-за особенностей hsv формата потом объединяем их в 1
-
     mask_weight = cv2.inRange(hsv_frame_weight, lower_hsv_weight1, upper_hsv_weight1)
-    # mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
-    # mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
+# mask_weight2 = cv2.inRange(hsv_frame_weight, lower_hsv_weight2, upper_hsv_weight2)
+# mask_weight = cv2.bitwise_or(mask_weight1, mask_weight2)
+
 
     # уменьшения шума
     kernel = np.ones((5, 5), np.uint8)
@@ -134,7 +156,6 @@ while True:
         # Игнор шума
         area = cv2.contourArea(contour)
         if area < 75:
-
             continue
 
         # прямоугольник, описывающий контур
@@ -149,12 +170,13 @@ while True:
         abs_y = y + roi_y_machine
 
         # Вычисляем центр объекта
-        center = (abs_x + w // 2, abs_y + h // 2)
+        center = ((abs_x + w // 2), (abs_y + h // 2))
         current_centers.append(center)
 
         # Рисуем прямоугольник вокруг объекта
         cv2.circle(frame, center, 5, (0, 255, 0), -1)
 
+        current_centers.append(center)
         # Выводим координаты центра
         cv2.putText(
             frame,
@@ -180,7 +202,7 @@ while True:
     for contour in contours_weight:
         # Игнор шума
         area = cv2.contourArea(contour)
-        if area < 600:
+        if area < 300:
             continue
 
         # Получаем прямоугольник, описывающий контур
@@ -213,9 +235,12 @@ while True:
         frame, current_weight_centers, ob_info, updated_objects, next_id, max_distance
     )
 
+    # Resize ROI for optimization
+    roi = cv2.resize(roi, (roi.shape[1]//2, roi.shape[0]//2))
+
     # Обновляем траектории
     tracked, exercises = machine_trajectory(
-        frame,
+        roi,
         current_centers,
         trajectories,
         min_hight,
@@ -225,13 +250,13 @@ while True:
         tracker,
         tracked,
         exercises,
-        elapsed_time,
+        frame,
         weight,
     )
 
     # Показываем кадр и маску
-    # Set window sizes
-    # Get screen resolution using GetSystemMetrics
+    # Set window sizes  
+    # Get screen resolution using GetSystemMetrics  
 
     screen_width = win32api.GetSystemMetrics(0)
     screen_height = win32api.GetSystemMetrics(1)
@@ -255,6 +280,23 @@ while True:
 
     mask_weight_resized = cv2.resize(
         mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
+    )
+
+    # Calculate FPS
+    new_frame_time = time.time()
+    fps = 1 / (new_frame_time - prev_frame_time)
+    prev_frame_time = new_frame_time
+
+    # Display FPS on frame
+    cv2.putText(
+        frame_resized,
+        f"FPS: {int(fps)}",
+        (10, 400),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (255, 0, 0),
+        2,
+        cv2.LINE_AA,
     )
 
     # Show windows

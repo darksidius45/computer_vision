@@ -1,16 +1,13 @@
 import cv2
 import numpy as np
-from config import get_camera_settings
+
 
 coords = []
 color = None
 scale = 1.0
 zoom_pt = None
 
-
-camera_type = "rasberry"
-camera_settings = get_camera_settings(camera_type)
-video_path = camera_settings["video"]
+video_path = r"test_videos\vivo_not_stable.mp4"
 
 
 def zoom(img, center, scale):

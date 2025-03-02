@@ -1,32 +1,7 @@
 import cv2
 import numpy as np
-from config import get_camera_settings
 import win32api
 import time
-
-
-# load all settings
-camera_type = "rasberry"
-camera_settings = get_camera_settings(camera_type)
-
-# цветовые диапазоны для метки на тренажере
-lower_hsv_machine = camera_settings["lower_hsv_machine"]
-upper_hsv_machine = camera_settings["upper_hsv_machine"]
-
-
-# диапазон для метки на тренажёре
-roi_x_machine = camera_settings["roi_x_movement"]
-roi_y_machine = camera_settings["roi_y_movement"]
-roi_width_machine = camera_settings["roi_width_movement"]
-roi_height_machine = camera_settings["roi_height_movement"]
-
-# настройки под тренажёр
-start_time = camera_settings["start_time"]
-
-
-set_timer = camera_settings["set_timer"]
-
-video = camera_settings["video"]
 
 
 def process_frame(
@@ -38,9 +13,11 @@ def process_frame(
     lower_hsv_machine,
     upper_hsv_machine,
     set_timer,
-    break_time,
-    prev_center,
 ):
+
+    if not hasattr(process_frame, "break_time"):
+        process_frame.break_time = 0
+        process_frame.prev_center = ()
     # Extract ROI from frame
     roi = frame[
         roi_y_machine : roi_y_machine + roi_height_machine,
@@ -112,15 +89,15 @@ def process_frame(
 
     MOVEMENT_THRESHOLD = 5
 
-    if center and prev_center:
-        vertical_movement = abs(center[1] - prev_center[1])
+    if center and process_frame.prev_center:
+        vertical_movement = abs(center[1] - process_frame.prev_center[1])
         print(vertical_movement)
         if vertical_movement < MOVEMENT_THRESHOLD:
-            if break_time == 0:
-                break_time = time.time()
-            timer = time.time() - break_time
+            if process_frame.break_time == 0:
+                process_frame.break_time = time.time()
+            timer = time.time() - process_frame.break_time
             if timer > set_timer:
-                None
+                return True
             cv2.putText(
                 frame,
                 f"Break timer: {timer:.2f}s",
@@ -131,9 +108,9 @@ def process_frame(
                 2,
             )
     else:
-        break_time = 0
+        process_frame.break_time = 0
 
-    prev_center = center
+    process_frame.prev_center = center
 
     screen_width = win32api.GetSystemMetrics(0)
     screen_height = win32api.GetSystemMetrics(1)
@@ -163,43 +140,4 @@ def process_frame(
     cv2.moveWindow("Frame", 0, 0)
     cv2.moveWindow("Mask_machine", frame_width + 10, 0)  # Add 10px padding
 
-    # Выход по нажатию клавиши q
-    key = cv2.waitKey(30) & 0xFF
-    should_exit = key == ord("q")
-
-    return should_exit, break_time, prev_center
-
-
-# Загрузка
-cap = cv2.VideoCapture(video)
-cap.set(cv2.CAP_PROP_POS_MSEC, start_time)  # включаем видео с определённой секунды
-
-
-if not cap.isOpened():
-    print("Error: Could not open video.")
-    exit()
-
-break_time = 0
-prev_center = ()
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-    lol, break_time, prev_center = process_frame(
-        frame,
-        roi_x_machine,
-        roi_y_machine,
-        roi_width_machine,
-        roi_height_machine,
-        lower_hsv_machine,
-        upper_hsv_machine,
-        set_timer,
-        break_time,
-        prev_center,
-    )
-
-    # Extract ROI from frame
-
-cap.release()
-cv2.destroyAllWindows()
+    return False

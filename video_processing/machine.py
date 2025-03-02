@@ -4,13 +4,13 @@ import time
 from config import get_camera_settings
 import time
 
-# load all settings
 camera_type = "rasberry"
 camera_settings = get_camera_settings(camera_type)
 
 # диапазон для метки на тренажёре
 roi_x_machine = camera_settings["roi_x_machine"]
 roi_y_machine = camera_settings["roi_y_machine"]
+
 
 def machine_trajectory(
     roi,
@@ -26,17 +26,18 @@ def machine_trajectory(
     frame,
     weight,
 ):
-      # Статические переменные для подсчета
+    # Статические переменные для подсчета
     if not hasattr(machine_trajectory, "reps"):
         machine_trajectory.reps = 0
         machine_trajectory.sets = 1
         machine_trajectory.prev_y = None
         machine_trajectory.moving_up = False
-        machine_trajectory.lowest_point = min_hight
-        machine_trajectory.highest_point = min_hight
+        machine_trajectory.lowest_point = min_hight // 2
+        machine_trajectory.highest_point = min_hight // 2
         machine_trajectory.break_timer = 0
         machine_trajectory.is_training = False
         machine_trajectory.weights = []
+
     if not tracked:
         if current_centers:
             for center in current_centers:
@@ -51,7 +52,10 @@ def machine_trajectory(
     ok, bbox = tracker.update(roi)
     if ok:
         p1 = (int(bbox[0] * 2 + roi_x_machine), int(bbox[1] * 2 + roi_y_machine))
-        p2 = (int(bbox[0] * 2 + roi_x_machine + bbox[2] * 2), int(bbox[1] * 2 + roi_y_machine + bbox[3] * 2))
+        p2 = (
+            int(bbox[0] * 2 + roi_x_machine + bbox[2] * 2),
+            int(bbox[1] * 2 + roi_y_machine + bbox[3] * 2),
+        )
         x = int(bbox[0] + bbox[2] / 2)
         y = int(bbox[1] + bbox[3] / 2)
         new_center = (x * 2 + roi_x_machine, y * 2 + roi_y_machine)
@@ -129,7 +133,8 @@ def machine_trajectory(
                     )
             else:
                 # Staying relatively still
-                if abs(y - min_hight) < 100 and machine_trajectory.is_training:
+
+                if abs(y - min_hight // 2) < 30 and machine_trajectory.is_training:
                     if machine_trajectory.break_timer == 0:
                         machine_trajectory.break_timer = time.time()
                     timer = time.time() - machine_trajectory.break_timer
@@ -206,7 +211,7 @@ def machine_trajectory(
         (255, 255, 255),
         2,
     )
-
+    # cv2.imshow("Mask_machine", roi)
     # Отрисовка траектории
     if len(trajectories) > 1:
         for i in range(1, len(trajectories)):

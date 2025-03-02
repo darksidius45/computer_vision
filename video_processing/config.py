@@ -79,6 +79,7 @@ def get_camera_settings(camera_type):
             "min_hight": 1000,
             "set_timer": 20,
             "rep_dist": 200,
+            "stop_timer": 5,
             "roi_x_movement": 1194,
             "roi_y_movement": 958,
             "roi_width_movement": 348,

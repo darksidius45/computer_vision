@@ -2,12 +2,51 @@ import cv2
 import numpy as np
 import win32api
 import time
-from config import get_camera_settings
-from machine import machine_trajectory
-from weights import weights_detection
+import queue
+import threading
+
+from .config import get_camera_settings
+from .machine import machine_trajectory
+from .weights import weights_detection
 
 
-def process_video(video_path, camera_type="rasberry"):
+video_queue = queue.Queue()  # Очередь для видео
+processing_thread = None 
+stop_processing = False
+
+# Инициализация системы
+def init_system(camera_type="rasberry"):
+    global processing_thread
+    # Запускаем поток обработки видео
+    processing_thread = threading.Thread(target=process_video, args=(camera_type,))
+    processing_thread.start()
+
+
+# Завершение системы
+def stop_system():
+    global stop_processing
+    stop_processing = True
+    if processing_thread:
+        processing_thread.join()
+    print("Система завершена.")
+
+
+def process_video(camera_type="rasberry"):
+    while not stop_processing:
+        try:
+            # Берем видео из очереди (с таймаутом, чтобы не блокировать поток навсегда)
+            video_filename = video_queue.get(timeout=1)
+            if video_filename:
+                print(f"Начало обработки видео: {video_filename}")
+                video_handling(video_filename, "rasberry")
+                print(f"Обработка завершена: {video_filename}")
+        except queue.Empty:
+            print("no interesting video")
+            time.sleep(5)
+            continue
+
+
+def video_handling(video_path, camera_type="rasberry"):
     """
     Process video for exercise tracking and weight detection
 
@@ -44,7 +83,7 @@ def process_video(video_path, camera_type="rasberry"):
     roi_height_weight = camera_settings["roi_height_weight"]
 
     # настройки под тренажёр
-    start_time_setting = camera_settings["start_time"]
+
     max_hight = camera_settings["max_hight"]
     min_hight = camera_settings["min_hight"]
     set_timer = camera_settings["set_timer"]
@@ -329,13 +368,6 @@ def process_video(video_path, camera_type="rasberry"):
     return exercises
 
 
-# Example usage:
-if __name__ == "__main__":
-    # Default camera type
-    camera_type = "rasberry"
-    # Get video path from camera settings or use a default path
-    video_path = get_camera_settings(camera_type).get("video", "default_video.mp4")
 
-    # Process the video
-    result = process_video(video_path, camera_type)
-    print(result)
+
+

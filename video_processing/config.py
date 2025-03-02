@@ -61,29 +61,33 @@ def get_camera_settings(camera_type):
         "rasberry": {
             "lower_hsv_machine": np.array([170, 124, 56]),
             "upper_hsv_machine": np.array([180, 255, 118]),
+
             "lower_hsv_weight1": np.array([170, 124, 56]),
             "upper_hsv_weight1": np.array([180, 255, 118]),
             "lower_hsv_weight2": np.array([170, 124, 56]),
             "upper_hsv_weight2": np.array([180, 255, 118]),
+
             "roi_x_machine": 1100,
             "roi_y_machine": 0,
             "roi_width_machine": 750,
             "roi_height_machine": 1100,
+
             "roi_x_weight": 49,
             "roi_y_weight": 5,
             "roi_width_weight": 597,
             "roi_height_weight": 1094,
-            "video": r"test_videos\rasberry1.mp4",
-            "start_time": 0,
+
+            "roi_x_movement": 1194,
+            "roi_y_movement": 958,
+            "roi_width_movement": 348,
+            "roi_height_movement": 116,
+
             "max_hight": 88,
             "min_hight": 1000,
             "set_timer": 20,
             "rep_dist": 200,
             "stop_timer": 5,
-            "roi_x_movement": 1194,
-            "roi_y_movement": 958,
-            "roi_width_movement": 348,
-            "roi_height_movement": 116,
+
         },
     }
     return settings.get(camera_type, "Camera type not found")

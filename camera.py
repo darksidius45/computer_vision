@@ -18,6 +18,7 @@ def process_frame(
         process_frame.break_time = 0
         process_frame.prev_center = ()
     # Extract ROI from frame
+
     roi = frame[
         roi_y_machine : roi_y_machine + roi_height_machine,
         roi_x_machine : roi_x_machine + roi_width_machine,
@@ -90,7 +91,6 @@ def process_frame(
 
     if center and process_frame.prev_center:
         vertical_movement = abs(center[1] - process_frame.prev_center[1])
-        print(vertical_movement)
         if vertical_movement < MOVEMENT_THRESHOLD:
             if process_frame.break_time == 0:
                 process_frame.break_time = time.time()

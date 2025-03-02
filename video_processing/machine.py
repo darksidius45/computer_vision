@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import time
-from config import get_camera_settings
+from .config import get_camera_settings
 import time
 
 camera_type = "rasberry"

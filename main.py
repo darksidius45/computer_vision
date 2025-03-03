@@ -26,10 +26,9 @@ root = None
 image_thread = None
 is_running = True 
 
-def auth_cam():
-    global token
+def auth_cam(user_id):
     print("")
-    url = host + '/api/auth_for_camera/' + str(id_user)
+    url = host + '/api/auth_for_camera/' + str(user_id)
     print(url)
     try:
         response = requests.post(url)
@@ -55,7 +54,7 @@ def auth_cam():
             
     except Exception as e:
         print(f'Непредвиденная ошибка324: {e}')
-    print(token)
+    return token
 
 
 def show_image(base64_data):
@@ -114,11 +113,51 @@ def getQR():
             print(f'Непредвиденная ошибка2: {e}')
     except Exception as e:
         print(f'Непредвиденная ошибка1: {e}')
+def second_part(user_id):
+    print("second")
+    token = auth_cam(user_id)
 
+    url = host + '/api/done_exercise_by_user'
+                    
+    data = {
+        "id": 1,
+        "sequence_number": 2,
+        "id_exercise": 3,
+        "name": "Bench press",
+        "example_exercise": "",
+        "weight": 100.0,
+        "count": 12,
+        "rest_time": "3 seconds",
+
+        "is_it_done": True,
+        "weight_done": 90,
+        "count_done": 40,
+    }
+    
+                    
+                    # Bearer Token
+                
+                    # Заголовки запроса, включая Bearer Token
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    print(headers)
+    try:
+        # Отправка POST-запроса 
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()  # Проверка на ошибки HTTP
+                        
+        print("Status Code:", response.status_code)
+        print("Response Body:", response.json())
+        token = ""
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+    except Exception as err:
+        print(f"An error occurred: {err}")
+        
 def main():
     i = 0
-    global id_user
-    global token
     while(i < 300):
         
         url = host + '/api/get_info_about_camera/' + str(id_camera)
@@ -145,50 +184,13 @@ def main():
                         root.after(0, close_image_window) 
                     print("!!!")
                     print(json_data["id_user"])
-                    auth_cam()
+                    token = auth_cam(id_user)
                     #python_file = "path/to/your_script.py"
 
                     # Запуск Python-файла
-                    record_video(camera_type, f"output{counter}.mp4")
+                    #record_video(camera_type, f"output{counter}.mp4")
                     
-                    url = host + '/api/done_exercise_by_user'
-                    
-                    data = {
-                      "id": 1,
-                      "sequence_number": 2,
-                      "id_exercise": 3,
-                      "name": "Bench press",
-                      "example_exercise": "",
-                      "weight": 100.0,
-                      "count": 12,
-                      "rest_time": "3 seconds",
-
-                      "is_it_done": True,
-                      "weight_done": 90,
-                      "count_done": 40,
-                    }
-                    
-                    # Bearer Token
-                
-                    # Заголовки запроса, включая Bearer Token
-                    headers = {
-                        "Authorization": f"Bearer {token}",
-                        "Content-Type": "application/json"
-                    }
-                    print(headers)
-                    try:
-                        # Отправка POST-запроса 
-                        response = requests.post(url, json=data, headers=headers)
-                        response.raise_for_status()  # Проверка на ошибки HTTP
-                        
-                        print("Status Code:", response.status_code)
-                        print("Response Body:", response.json())
-                        token = ""
-                        break
-                    except requests.exceptions.HTTPError as http_err:
-                        print(f"HTTP error occurred: {http_err}")
-                    except Exception as err:
-                        print(f"An error occurred: {err}")
+                    second_part(id_user)
             except json.decoder.JSONDecodeError:
                 print(f'Ошибка декодирования JSON. Ответ сервера: {response.text}')
 

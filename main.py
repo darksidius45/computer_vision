@@ -213,11 +213,9 @@ show_image(getQR())
 # Запускаем основной код в отдельном потоке
 main_thread = threading.Thread(target=main)
 main_thread.start()
-
-init_system("rasberry")
+init_system("rasberry", 3)
 # Запускаем главный цикл Tkinter
 root.mainloop()
-time.slee(600)
 stop_system()
 # Ожидание завершения потока с основным кодом
 main_thread.join()

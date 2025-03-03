@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import win32api
 import time
 import queue
 import threading
@@ -67,7 +66,7 @@ def process_video(camera_type="rasberry"):
             video_filename = video_queue.get(timeout=1)
             if video_filename:
                 print(f"Начало обработки видео: {video_filename}")
-                video_handling(video_filename, "rasberry")
+                result = video_handling(video_filename, "rasberry")
                 print(f"Обработка завершена: {video_filename}")
         except queue.Empty:
             print("no interesting video")
@@ -332,48 +331,45 @@ def video_handling(video_path, camera_type="rasberry"):
             frame,
             weight,
         )
+        
 
-        # Get screen resolution
-        screen_width = win32api.GetSystemMetrics(0)
-        screen_height = win32api.GetSystemMetrics(1)
+        # # Calculate frame size to fit screen while maintaining aspect ratio
+        # frame_height = int(screen_height * 0.8)  # Use 80% of screen height
+        # frame_width = int(frame.shape[1] * frame_height / frame.shape[0])
 
-        # Calculate frame size to fit screen while maintaining aspect ratio
-        frame_height = int(screen_height * 0.8)  # Use 80% of screen height
-        frame_width = int(frame.shape[1] * frame_height / frame.shape[0])
+        # # Ensure frame width doesn't exceed screen width
+        # if frame_width > screen_width * 0.8:
+        #     frame_width = int(screen_width * 0.8)
+        #     frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
 
-        # Ensure frame width doesn't exceed screen width
-        if frame_width > screen_width * 0.8:
-            frame_width = int(screen_width * 0.8)
-            frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
+        # # Resize frame only
+        # frame_resized = cv2.resize(frame, (frame_width, frame_height))
 
-        # Resize frame only
-        frame_resized = cv2.resize(frame, (frame_width, frame_height))
+        # # Resize masks to half size
+        # mask_machine_resized = cv2.resize(
+        #     mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
+        # )
 
-        # Resize masks to half size
-        mask_machine_resized = cv2.resize(
-            mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
-        )
+        # mask_weight_resized = cv2.resize(
+        #     mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
+        # )
 
-        mask_weight_resized = cv2.resize(
-            mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
-        )
+        # # Calculate FPS
+        # new_frame_time = time.time()
+        # fps = 1 / (new_frame_time - prev_frame_time)
+        # prev_frame_time = new_frame_time
 
-        # Calculate FPS
-        new_frame_time = time.time()
-        fps = 1 / (new_frame_time - prev_frame_time)
-        prev_frame_time = new_frame_time
-
-        # Display FPS on frame
-        cv2.putText(
-            frame_resized,
-            f"FPS: {int(fps)}",
-            (10, 400),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 0, 0),
-            2,
-            cv2.LINE_AA,
-        )
+        # # Display FPS on frame
+        # cv2.putText(
+        #     frame_resized,
+        #     f"FPS: {int(fps)}",
+        #     (10, 400),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     1,
+        #     (255, 0, 0),
+        #     2,
+        #     cv2.LINE_AA,
+        # )
 
         # Show windows
         # cv2.imshow("Frame", frame_resized)

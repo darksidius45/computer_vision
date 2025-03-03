@@ -217,6 +217,7 @@ main_thread.start()
 init_system("rasberry")
 # Запускаем главный цикл Tkinter
 root.mainloop()
+time.slee(600)
 stop_system()
 # Ожидание завершения потока с основным кодом
 main_thread.join()

@@ -4,6 +4,7 @@ import win32api
 import time
 import queue
 import threading
+import psutil  
 
 from .config import get_camera_settings
 from .machine import machine_trajectory
@@ -15,11 +16,39 @@ processing_thread = None
 stop_processing = False
 
 # Инициализация системы
-def init_system(camera_type="rasberry"):
+def init_system(camera_type="rasberry", core_num=3):
+    """
+    Initialize the system and set processing thread to run on a specific CPU core.
+    
+    Args:
+        camera_type (str): Type of camera to use
+        core_num (int): CPU core number (0-based index) to run the thread on
+    """
     global processing_thread
+    
     # Запускаем поток обработки видео
     processing_thread = threading.Thread(target=process_video, args=(camera_type,))
     processing_thread.start()
+    
+    # Get thread ID and set CPU affinity
+    thread_id = processing_thread.native_id
+    if thread_id:
+        try:
+            # Create a process handle
+            p = psutil.Process()
+            
+            # Get the number of CPU cores
+            available_cores = psutil.cpu_count()
+            
+            # Make sure the requested core exists
+            if core_num < 0 or core_num >= available_cores:
+                print(f"Warning: Core {core_num} not available. Using default core assignment.")
+            else:
+                # Set affinity to only use the specified core
+                p.cpu_affinity([core_num])
+                print(f"Video processing thread assigned to CPU core {core_num}")
+        except Exception as e:
+            print(f"Failed to set CPU core affinity: {e}")
 
 
 # Завершение системы
@@ -347,27 +376,27 @@ def video_handling(video_path, camera_type="rasberry"):
         )
 
         # Show windows
-        cv2.imshow("Frame", frame_resized)
-        cv2.imshow("Mask_machine", mask_machine_resized)
-        cv2.imshow("Mask_weight", mask_weight_resized)
+        # cv2.imshow("Frame", frame_resized)
+        # cv2.imshow("Mask_machine", mask_machine_resized)
+        # cv2.imshow("Mask_weight", mask_weight_resized)
 
-        # Position windows
-        cv2.moveWindow("Frame", 0, 0)
-        cv2.moveWindow("Mask_machine", frame_width + 10, 0)
-        cv2.moveWindow(
-            "Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0
-        )
+        # # Position windows
+        # cv2.moveWindow("Frame", 0, 0)
+        # cv2.moveWindow("Mask_machine", frame_width + 10, 0)
+        # cv2.moveWindow(
+        #     "Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0
+        # )
 
         # Выход по нажатию клавиши q
         if cv2.waitKey(30) & 0xFF == ord("q"):
             break
 
     cap.release()
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
 
     return exercises
 
 
 
-
-
+video_handling("test_videos/rassbery.mp4", "rasberry")
+    

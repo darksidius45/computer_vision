@@ -86,7 +86,7 @@ def get_camera_settings(camera_type):
             "min_hight": 1000,
             "set_timer": 20,
             "rep_dist": 200,
-            "stop_timer": 5,
+            "stop_timer": 8,
 
         },
     }

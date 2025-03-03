@@ -8,11 +8,17 @@ from PIL import Image, ImageTk
 import tkinter as tk
 import threading
 
+from video_processing.video_processing import init_system, stop_system
+from record_video import record_video
+
+camera_type = "rasberry"
+counter = 0
+
 id_camera = 3
 id_user = "-1"
 token = ""
 
-host = "http://localhost:8080"
+host = "http://104.238.29.249:8080"
 camera_file = "camera.py"
 cv_file = "cv.py"
 
@@ -143,9 +149,7 @@ def main():
                     #python_file = "path/to/your_script.py"
 
                     # Запуск Python-файла
-                    # process = subprocess.run(["python", camera_file])
-
-                    # process = subprocess.run(["python", cv_file])
+                    record_video(camera_type, f"output{counter}.mp4")
                     
                     url = host + '/api/done_exercise_by_user'
                     
@@ -210,9 +214,10 @@ show_image(getQR())
 main_thread = threading.Thread(target=main)
 main_thread.start()
 
+init_system("rasberry")
 # Запускаем главный цикл Tkinter
 root.mainloop()
-
+stop_system()
 # Ожидание завершения потока с основным кодом
 main_thread.join()
 

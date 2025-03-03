@@ -41,7 +41,8 @@ def record_video(camera_type="rasberry", file_name="output.mp4"):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4 codec
     out = cv2.VideoWriter(file_name, fourcc, 30.0, (1920, 1080))
     recording = False
-
+    if  hasattr(process_frame, "break_time"):
+        process_frame.break_time = 0
     try:
         while True:
             ret, frame = cap.read()
@@ -71,18 +72,20 @@ def record_video(camera_type="rasberry", file_name="output.mp4"):
                 print("Условие для остановки записи выполнено.")
                 break
 
-            cv2.rectangle(
-                frame,
-                (roi_x_machine, roi_y_machine),
-                (roi_x_machine + roi_width_machine, roi_y_machine + roi_height_machine),
-                (255, 255, 255),
-                2,
-            )
+            # Отображение кадра
+
+            frame = cv2.resize(frame, (1280, 720))
+
+            cv2.imshow("Frame", frame)
+            
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
+                break
 
         # Освобождение ресурсов
         cap.release()
         out.release()
-        cv2.destroyAllWindows()
+        cv2.destroyWindow("Frame")
 
         print(f"Запись завершена и сохранена в '{file_name}'.")
         video_queue.put(file_name)
@@ -93,6 +96,7 @@ def record_video(camera_type="rasberry", file_name="output.mp4"):
         # Освобождение ресурсов при ошибке
         cap.release()
         out.release()
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows()
+
         return False
 

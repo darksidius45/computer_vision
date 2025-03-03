@@ -132,11 +132,7 @@ def process_frame(
     )
 
     # Show windows
-    cv2.imshow("Frame", frame_resized)
-    cv2.imshow("Mask_machine", mask_machine_resized)  # Show resized mask
+    # cv2.imshow("Frame", frame_resized)
 
-    # Position windows
-    cv2.moveWindow("Frame", 0, 0)
-    cv2.moveWindow("Mask_machine", frame_width + 10, 0)  # Add 10px padding
 
     return False

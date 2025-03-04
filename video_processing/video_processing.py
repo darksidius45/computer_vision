@@ -15,18 +15,22 @@ processing_thread = None
 stop_processing = False
 
 # Инициализация системы
-def init_system(camera_type="rasberry", core_num=3):
+def init_system(callback, camera_type="rasberry", core_num=3):
     """
     Initialize the system and set processing thread to run on a specific CPU core.
     
     Args:
         camera_type (str): Type of camera to use
         core_num (int): CPU core number (0-based index) to run the thread on
+        callback (callable): Function to call with results after processing completes
     """
     global processing_thread
     
-    # Запускаем поток обработки видео
-    processing_thread = threading.Thread(target=process_video, args=(camera_type,))
+    # Запускаем поток обработки видео с передачей callback функции
+    processing_thread = threading.Thread(
+        target=process_video, 
+        args=(callback, camera_type)
+    )
     processing_thread.start()
     
     # Get thread ID and set CPU affinity
@@ -59,14 +63,18 @@ def stop_system():
     print("Система завершена.")
 
 
-def process_video(camera_type="rasberry"):
+def process_video(callback, camera_type="rasberry"):
     while not stop_processing:
         try:
             # Берем видео из очереди (с таймаутом, чтобы не блокировать поток навсегда)
             video_filename = video_queue.get(timeout=1)
             if video_filename:
                 print(f"Начало обработки видео: {video_filename}")
-                result = video_handling(video_filename, "rasberry")
+                result = video_handling(video_filename, camera_type)
+                # Extract user_id from the filename (format: user_id_counter.mp4)
+                user_id = video_filename.split('_')[0]
+                # Pass both result and user_id to the callback
+                callback(result, user_id)
                 print(f"Обработка завершена: {video_filename}")
         except queue.Empty:
             print("no interesting video")

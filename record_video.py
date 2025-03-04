@@ -3,7 +3,7 @@ from video_processing.config import get_camera_settings
 from video_processing.camera import process_frame
 from video_processing.video_processing import video_queue
 
-def record_video(camera_type="rasberry", file_name="output.mp4"):
+def record_video(camera_type="rasberry", file_name="output.mp4",):
     """
     Records video from camera until specific conditions are met.
     

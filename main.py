@@ -1,7 +1,6 @@
 import requests
 import json
 import time
-import subprocess
 import io
 import base64
 from PIL import Image, ImageTk
@@ -113,10 +112,23 @@ def getQR():
             print(f'Непредвиденная ошибка2: {e}')
     except Exception as e:
         print(f'Непредвиденная ошибка1: {e}')
-def second_part(user_id):
+
+
+
+def second_part(result, user_id):
     print("second")
     token = auth_cam(user_id)
-
+    # Calculate the average weight from the first set (approach)
+    weights = 0
+    count_done = 0
+    if result:  # Check if first set exists
+        approach_data = result["1"]
+        count_done = len(approach_data)  # Get data for the first approach
+        weights_in_approach = [rep_data[0] for rep_data in approach_data if rep_data]  # Extract weights
+        
+        if weights_in_approach:
+            weights = sum(weights_in_approach) / len(weights_in_approach)  # Calculate average
+    
     url = host + '/api/done_exercise_by_user'
                     
     data = {
@@ -128,11 +140,11 @@ def second_part(user_id):
         "weight": 100.0,
         "count": 12,
         "rest_time": "3 seconds",
-
         "is_it_done": True,
-        "weight_done": 90,
-        "count_done": 40,
+        "weight_done": weights,
+        "count_done": count_done,
     }
+    print("lKJKJDLSKFJLSKDJFLKSDJFLKDJFLKSDJFLKDSJFLKDSJFLKSDJFLKSJD")
     
                     
                     # Bearer Token
@@ -156,6 +168,7 @@ def second_part(user_id):
     except Exception as err:
         print(f"An error occurred: {err}")
         
+
 def main():
     i = 0
     while(i < 300):
@@ -188,9 +201,13 @@ def main():
                     #python_file = "path/to/your_script.py"
 
                     # Запуск Python-файла
-                    #record_video(camera_type, f"output{counter}.mp4")
-                    
-                    second_part(id_user)
+                    record_video(camera_type, f"{id_user}_{counter}.mp4")
+                    counter += 1
+                    break
+                    # second_part(id_user)
+
+
+
             except json.decoder.JSONDecodeError:
                 print(f'Ошибка декодирования JSON. Ответ сервера: {response.text}')
 
@@ -215,14 +232,14 @@ show_image(getQR())
 # Запускаем основной код в отдельном потоке
 main_thread = threading.Thread(target=main)
 main_thread.start()
-init_system("rasberry", 3)
+init_system(second_part, "rasberry", 3)
 # Запускаем главный цикл Tkinter
 root.mainloop()
-stop_system()
+
 # Ожидание завершения потока с основным кодом
 main_thread.join()
 
-
+stop_system()
 
 
 

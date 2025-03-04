@@ -2,6 +2,8 @@ import cv2
 from video_processing.config import get_camera_settings
 from video_processing.camera import process_frame
 from video_processing.video_processing import video_queue
+from picamera2 import Picamera2
+import time
 
 def record_video(camera_type="rasberry", file_name="output.mp4",):
     """
@@ -31,10 +33,51 @@ def record_video(camera_type="rasberry", file_name="output.mp4",):
     stop_timer = camera_settings["stop_timer"]
 
     # Initialize video capture with test video
-    cap = cv2.VideoCapture(r"C:\Users\prive\Desktop\prog\HSMG_CV\test_videos\rasberry1.mp4")
-    # Set starting position to 30 seconds (30000 milliseconds)
-    # cap.set(cv2.CAP_PROP_POS_MSEC, 15000)
-
+    if camera_type == "rasberry":
+        try:
+            
+            # Initialize PiCamera2
+            camera = Picamera2()
+            
+            # Configure the camera with 1920x1080 resolution
+            camera_config = camera.create_still_configuration(
+                main={"size": (1920, 1080), "format": "RGB888"}, 
+                controls={"FrameRate": 30}
+            )
+            camera.configure(camera_config)
+            
+            # Start the camera
+            camera.start()
+            
+            # Use a custom capture class to provide a compatible interface
+            class PiCameraCapture:
+                def read(self):
+                    frame = camera.capture_array()
+                    return (True, frame)
+                
+                def release(self):
+                    camera.stop()
+                    camera.close()
+                
+                def isOpened(self):
+                    return True
+                
+                def set(self, *args, **kwargs):
+                    # This is a no-op since settings are configured above
+                    return True
+            
+            cap = PiCameraCapture()
+            
+        except ImportError:
+            print("Error: PiCamera2 module not available, falling back to OpenCV capture")
+            cap = cv2.VideoCapture(0)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+    else:
+        # Fallback to default camera
+        cap = cv2.VideoCapture(0)
+    
     # Проверка, успешно ли открыт видеозахват
     if not cap.isOpened():
         print("Ошибка: Не удалось открыть камеру.")

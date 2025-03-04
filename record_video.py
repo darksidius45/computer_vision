@@ -30,7 +30,10 @@ def record_video(camera_type="rasberry", file_name="output.mp4",):
     # настройки под тренажёр
     stop_timer = camera_settings["stop_timer"]
 
-    cap = cv2.VideoCapture(r"C:\Users\prive\Desktop\prog\HSMG_CV\test_videos\rasberry1.mp4")  # Используем тестовое видео
+    # Initialize video capture with test video
+    cap = cv2.VideoCapture(r"C:\Users\prive\Desktop\prog\HSMG_CV\test_videos\rasberry1.mp4")
+    # Set starting position to 30 seconds (30000 milliseconds)
+    # cap.set(cv2.CAP_PROP_POS_MSEC, 15000)
 
     # Проверка, успешно ли открыт видеозахват
     if not cap.isOpened():

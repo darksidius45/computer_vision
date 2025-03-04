@@ -397,7 +397,7 @@ def video_handling(video_path, camera_type="rasberry"):
 
     cap.release()
     # cv2.destroyAllWindows()
-
+    print(exercises)
     return exercises
 
 

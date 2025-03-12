@@ -1,13 +1,88 @@
 import cv2
 import numpy as np
-import win32api
 import time
-from config import get_camera_settings
-from machine import machine_trajectory
-from weights import weights_detection
+import queue
+import threading
+import psutil  
+
+from .config import get_camera_settings
+from .machine import machine_trajectory
+from .weights import weights_detection
 
 
-def process_video(video_path, camera_type="rasberry"):
+video_queue = queue.Queue()  # Очередь для видео
+processing_thread = None 
+stop_processing = False
+
+# Инициализация системы
+def init_system(callback, camera_type="rasberry", core_num=3):
+    """
+    Initialize the system and set processing thread to run on a specific CPU core.
+    
+    Args:
+        camera_type (str): Type of camera to use
+        core_num (int): CPU core number (0-based index) to run the thread on
+        callback (callable): Function to call with results after processing completes
+    """
+    global processing_thread
+    
+    # Запускаем поток обработки видео с передачей callback функции
+    processing_thread = threading.Thread(
+        target=process_video, 
+        args=(callback, camera_type)
+    )
+    processing_thread.start()
+    
+    # Get thread ID and set CPU affinity
+    thread_id = processing_thread.native_id
+    if thread_id:
+        try:
+            # Create a process handle
+            p = psutil.Process()
+            
+            # Get the number of CPU cores
+            available_cores = psutil.cpu_count()
+            
+            # Make sure the requested core exists
+            if core_num < 0 or core_num >= available_cores:
+                print(f"Warning: Core {core_num} not available. Using default core assignment.")
+            else:
+                # Set affinity to only use the specified core
+                p.cpu_affinity([core_num])
+                print(f"Video processing thread assigned to CPU core {core_num}")
+        except Exception as e:
+            print(f"Failed to set CPU core affinity: {e}")
+
+
+# Завершение системы
+def stop_system():
+    global stop_processing
+    stop_processing = True
+    if processing_thread:
+        processing_thread.join()
+    print("Система завершена.")
+
+
+def process_video(callback, camera_type="rasberry"):
+    while not stop_processing:
+        try:
+            # Берем видео из очереди (с таймаутом, чтобы не блокировать поток навсегда)
+            video_filename = video_queue.get(timeout=1)
+            if video_filename:
+                print(f"Начало обработки видео: {video_filename}")
+                result = video_handling(video_filename, camera_type)
+                # Extract user_id from the filename (format: user_id_counter.mp4)
+                user_id = video_filename.split('_')[0]
+                # Pass both result and user_id to the callback
+                callback(result, user_id)
+                print(f"Обработка завершена: {video_filename}")
+        except queue.Empty:
+            print("no interesting video")
+            time.sleep(5)
+            continue
+
+
+def video_handling(video_path, camera_type="rasberry"):
     """
     Process video for exercise tracking and weight detection
 
@@ -44,7 +119,7 @@ def process_video(video_path, camera_type="rasberry"):
     roi_height_weight = camera_settings["roi_height_weight"]
 
     # настройки под тренажёр
-    start_time_setting = camera_settings["start_time"]
+
     max_hight = camera_settings["max_hight"]
     min_hight = camera_settings["min_hight"]
     set_timer = camera_settings["set_timer"]
@@ -264,78 +339,68 @@ def process_video(video_path, camera_type="rasberry"):
             frame,
             weight,
         )
+        
 
-        # Get screen resolution
-        screen_width = win32api.GetSystemMetrics(0)
-        screen_height = win32api.GetSystemMetrics(1)
+        # # Calculate frame size to fit screen while maintaining aspect ratio
+        # frame_height = int(screen_height * 0.8)  # Use 80% of screen height
+        # frame_width = int(frame.shape[1] * frame_height / frame.shape[0])
 
-        # Calculate frame size to fit screen while maintaining aspect ratio
-        frame_height = int(screen_height * 0.8)  # Use 80% of screen height
-        frame_width = int(frame.shape[1] * frame_height / frame.shape[0])
+        # # Ensure frame width doesn't exceed screen width
+        # if frame_width > screen_width * 0.8:
+        #     frame_width = int(screen_width * 0.8)
+        #     frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
 
-        # Ensure frame width doesn't exceed screen width
-        if frame_width > screen_width * 0.8:
-            frame_width = int(screen_width * 0.8)
-            frame_height = int(frame.shape[0] * frame_width / frame.shape[1])
+        # # Resize frame only
+        # frame_resized = cv2.resize(frame, (frame_width, frame_height))
 
-        # Resize frame only
-        frame_resized = cv2.resize(frame, (frame_width, frame_height))
+        # # Resize masks to half size
+        # mask_machine_resized = cv2.resize(
+        #     mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
+        # )
 
-        # Resize masks to half size
-        mask_machine_resized = cv2.resize(
-            mask_machine, (mask_machine.shape[1] // 2, mask_machine.shape[0] // 2)
-        )
+        # mask_weight_resized = cv2.resize(
+        #     mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
+        # )
 
-        mask_weight_resized = cv2.resize(
-            mask_weight, (mask_weight.shape[1] // 2, mask_weight.shape[0] // 2)
-        )
+        # # Calculate FPS
+        # new_frame_time = time.time()
+        # fps = 1 / (new_frame_time - prev_frame_time)
+        # prev_frame_time = new_frame_time
 
-        # Calculate FPS
-        new_frame_time = time.time()
-        fps = 1 / (new_frame_time - prev_frame_time)
-        prev_frame_time = new_frame_time
-
-        # Display FPS on frame
-        cv2.putText(
-            frame_resized,
-            f"FPS: {int(fps)}",
-            (10, 400),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 0, 0),
-            2,
-            cv2.LINE_AA,
-        )
+        # # Display FPS on frame
+        # cv2.putText(
+        #     frame_resized,
+        #     f"FPS: {int(fps)}",
+        #     (10, 400),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     1,
+        #     (255, 0, 0),
+        #     2,
+        #     cv2.LINE_AA,
+        # )
 
         # Show windows
-        cv2.imshow("Frame", frame_resized)
-        cv2.imshow("Mask_machine", mask_machine_resized)
-        cv2.imshow("Mask_weight", mask_weight_resized)
+        # cv2.imshow("Frame", frame_resized)
+        # cv2.imshow("Mask_machine", mask_machine_resized)
+        # cv2.imshow("Mask_weight", mask_weight_resized)
 
-        # Position windows
-        cv2.moveWindow("Frame", 0, 0)
-        cv2.moveWindow("Mask_machine", frame_width + 10, 0)
-        cv2.moveWindow(
-            "Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0
-        )
+        # # Position windows
+        # cv2.moveWindow("Frame", 0, 0)
+        # cv2.moveWindow("Mask_machine", frame_width + 10, 0)
+        # cv2.moveWindow(
+        #     "Mask_weight", frame_width + mask_machine_resized.shape[1] + 20, 0
+        # )
 
         # Выход по нажатию клавиши q
         if cv2.waitKey(30) & 0xFF == ord("q"):
             break
 
     cap.release()
-    cv2.destroyAllWindows()
-
+    # cv2.destroyAllWindows()
+    print(exercises)
     return exercises
 
 
-# Example usage:
-if __name__ == "__main__":
-    # Default camera type
-    camera_type = "rasberry"
-    # Get video path from camera settings or use a default path
-    video_path = get_camera_settings(camera_type).get("video", "default_video.mp4")
 
-    # Process the video
-    result = process_video(video_path, camera_type)
-    print(result)
+video_handling("test_videos/rassbery.mp4", "rasberry")
+    

@@ -2,24 +2,27 @@
 
 ## Overview
 
-HSMG_CV is an advanced computer vision system designed to track and analyze exercise movements using colored markers. The system detects exercise machines, tracks weightlifting movements, counts repetitions and sets, and estimates weights used during workouts.
+HSMG_CV is an advanced computer vision system designed to track and analyze exercise movements using colored markers. The system detects exercise machines, tracks weightlifting movements, counts repetitions and sets, and estimates weights used during workouts. It supports Raspberry Pi cameras for efficient deployment in gym environments.
 
 ## Features
 
 - **Automated Exercise Detection**: Detects and tracks exercise machine movements using color markers
 - **Weight Tracking**: Identifies and estimates weights used during exercises
 - **Rep and Set Counting**: Automatically counts repetitions and sets during workouts
-- **Video Recording**: Records workout sessions for later analysis
+- **Video Recording**: Records workout sessions with controlled frame rates for stable playback
 - **Multi-threaded Processing**: Uses separate threads for video recording and analysis
 - **Exercise Data Collection**: Collects comprehensive workout data including weight used, repetition count, and rest time
 - **Configurable Settings**: Adaptable parameters for different camera setups and environments
+- **Raspberry Pi Support**: Optimized for Raspberry Pi cameras using Picamera2 library
+- **Backend Integration**: Connects to a server for user authentication and data storage
 
 ## Requirements
 
 - Python 3.8+
 - OpenCV 4.11+
 - NumPy
-- PyWin32
+- Picamera2 (for Raspberry Pi deployment)
+- PyWin32 (for Windows deployment)
 - Other dependencies listed in requirements.txt
 
 ## Installation

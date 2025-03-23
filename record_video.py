@@ -8,48 +8,40 @@ import time
 def record_video(camera_type="rasberry", file_name="output.mp4",):
     """
     Records video from camera until specific conditions are met.
-    
-    Args:
-        camera_type (str): Type of camera configuration to use ("rasberry", etc.)
-        file_name (str): Name of the output video file
-        
-    Returns:
-        bool: True if recording completed successfully, False otherwise
     """
     # load all settings
     camera_settings = get_camera_settings(camera_type)
 
-    # цветовые диапазоны для метки на тренажере
+    # Параметры конфигурации
     lower_hsv_machine = camera_settings["lower_hsv_machine"]
     upper_hsv_machine = camera_settings["upper_hsv_machine"]
-
-    # диапазон для метки на тренажёре
     roi_x_machine = camera_settings["roi_x_movement"]
     roi_y_machine = camera_settings["roi_y_movement"]
     roi_width_machine = camera_settings["roi_width_movement"]
     roi_height_machine = camera_settings["roi_height_movement"]
-
-    # настройки под тренажёр
     stop_timer = camera_settings["stop_timer"]
 
-    # Initialize video capture with test video
+    # Устанавливаем более низкую частоту кадров для стабильной записи
+    target_fps = 20  # Снижаем до 20 fps для более устойчивой записи
+    frame_delay = 1.0 / target_fps
+
+    # Инициализация камеры
     if camera_type == "rasberry":
         try:
-            
-            # Initialize PiCamera2
             camera = Picamera2()
+            print("# Initialize PiCamera2")
             
-            # Configure the camera with 1920x1080 resolution
-            camera_config = camera.create_still_configuration(
+            # Важно: устанавливаем частоту кадров ниже требуемой,
+            # чтобы избежать переполнения буфера
+            camera_config = camera.create_video_configuration(
                 main={"size": (1920, 1080), "format": "RGB888"}, 
-                controls={"FrameRate": 30}
+                controls={"FrameRate": target_fps, "AwbEnable": True}
             )
             camera.configure(camera_config)
             
-            # Start the camera
-            camera.start()
+            camera.start(show_preview=False)
+            print("camera start")
             
-            # Use a custom capture class to provide a compatible interface
             class PiCameraCapture:
                 def read(self):
                     frame = camera.capture_array()
@@ -57,54 +49,76 @@ def record_video(camera_type="rasberry", file_name="output.mp4",):
                 
                 def release(self):
                     camera.stop()
-                    camera.close()
+                    print("Camera stopped")
                 
                 def isOpened(self):
                     return True
                 
                 def set(self, *args, **kwargs):
-                    # This is a no-op since settings are configured above
                     return True
             
             cap = PiCameraCapture()
             
         except ImportError:
-            print("Error: PiCamera2 module not available, falling back to OpenCV capture")
+            print("Error: PiCamera2 module not available")
             cap = cv2.VideoCapture(0)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            cap.set(cv2.CAP_PROP_FPS, 30)
+            cap.set(cv2.CAP_PROP_FPS, target_fps)
     else:
-        # Fallback to default camera
         cap = cv2.VideoCapture(0)
     
-    # Проверка, успешно ли открыт видеозахват
     if not cap.isOpened():
         print("Ошибка: Не удалось открыть камеру.")
         return False
         
-    # Настройка кодек и создание объекта VideoWriter
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4 codec
-    out = cv2.VideoWriter(file_name, fourcc, 30.0, (1920, 1080))
+    # Используем H.264 кодек вместо mp4v для лучшего контроля времени
+    # Для Raspberry Pi часто лучше работает h264
+    fourcc = cv2.VideoWriter_fourcc(*'H264') if cv2.__version__ >= '4.0.0' else cv2.VideoWriter_fourcc(*'X264')
+    out = cv2.VideoWriter(file_name, fourcc, target_fps, (1920, 1080))
+    
     recording = False
-    if  hasattr(process_frame, "break_time"):
+    if hasattr(process_frame, "break_time"):
         process_frame.break_time = 0
+    
+    frame_count = 0
+    start_time = time.time()
+    
     try:
+        last_frame_time = time.time()
+        
         while True:
+            # Строгий контроль времени
+            current_time = time.time()
+            elapsed = current_time - last_frame_time
+            
+            # Если не прошло достаточно времени - ждем
+            if elapsed < frame_delay:
+                wait_time = frame_delay - elapsed
+                time.sleep(wait_time)
+            
+            frame_count += 1
+            last_frame_time = time.time()
+            
+            # Получаем кадр
             ret, frame = cap.read()
-            if not ret:
+            if not ret or frame is None:
                 print("Ошибка: Не удалось получить кадр.")
                 break
 
             if not recording:
-                # Начать запись, если еще не начали
                 recording = True
                 print(f"Начало записи в файл {file_name}...")
 
             # Запись кадра
             out.write(frame)
-
-            # Анализ кадра
+            
+            # Отладочная информация о частоте кадров
+            if frame_count % 30 == 0:
+                current = time.time()
+                actual_fps = frame_count / (current - start_time)
+                print(f"Текущая частота кадров: {actual_fps:.2f} fps")
+            
             if process_frame(
                 frame,
                 roi_x_machine,
@@ -117,15 +131,11 @@ def record_video(camera_type="rasberry", file_name="output.mp4",):
             ):
                 print("Условие для остановки записи выполнено.")
                 break
-
-            # Отображение кадра
-
-            frame = cv2.resize(frame, (1280, 720))
-
-            cv2.imshow("Frame", frame)
             
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
+            frame_display = cv2.resize(frame, (1280, 720))
+            cv2.imshow("Frame", frame_display)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         # Освобождение ресурсов
@@ -133,16 +143,18 @@ def record_video(camera_type="rasberry", file_name="output.mp4",):
         out.release()
         cv2.destroyWindow("Frame")
 
-        print(f"Запись завершена и сохранена в '{file_name}'.")
+        # Финальная информация о записи
+        elapsed_time = time.time() - start_time
+        actual_fps = frame_count / elapsed_time
+        print(f"Запись завершена. Сохранено {frame_count} кадров за {elapsed_time:.2f} секунд.")
+        print(f"Средняя частота кадров: {actual_fps:.2f} fps")
+        print(f"Файл сохранен: {file_name}")
+        
         video_queue.put(file_name)
         return True
         
     except Exception as e:
         print(f"Произошла ошибка: {str(e)}")
-        # Освобождение ресурсов при ошибке
         cap.release()
         out.release()
-        # cv2.destroyAllWindows()
-
         return False
-

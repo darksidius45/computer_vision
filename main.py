@@ -64,28 +64,35 @@ def auth_cam(user_id):
 def show_image(base64_data):
     global root, tk_image
 
-    # Декодируем Base64 в бинарные данные
+    # Decode Base64 to binary data
     image_data = base64.b64decode(base64_data)
 
-    # Создаем изображение из бинарных данных
+    # Create image from binary data
     image = Image.open(io.BytesIO(image_data))
 
-    # Получаем размеры экрана
+    # Get screen dimensions
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
 
-    # Масштабируем изображение под размер экрана
-    image = image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+    # Calculate size for square QR code (use the smaller dimension)
+    qr_size = min(screen_width, screen_height) * 0.7  # 70% of smaller dimension
+    
+    # Resize image to be square
+    image = image.resize((int(qr_size), int(qr_size)), Image.Resampling.LANCZOS)
 
-    # Преобразуем изображение в формат, подходящий для Tkinter
+    # Convert image to Tkinter format
     tk_image = ImageTk.PhotoImage(image)
 
-    # Создаем метку с изображением и размещаем ее в окне
+    # Clear existing widgets
     for widget in root.winfo_children():
         widget.destroy()
     
-    label = tk.Label(root, image=tk_image)
-    label.pack(fill="both", expand=True)
+    # Center the QR code in the window
+    frame = tk.Frame(root, width=screen_width, height=screen_height)
+    frame.pack(fill="both", expand=True)
+    
+    label = tk.Label(frame, image=tk_image)
+    label.place(relx=0.5, rely=0.5, anchor="center")
 
 def close_image_window():
     pass  # This is now handled differently

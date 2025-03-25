@@ -1,0 +1,46 @@
+# Virtual environments
+venv/
+myenv/
+.env/
+env/
+.venv/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyd
+*.pyo
+*.so
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# Dependency files (if not tracking)
+Pipfile.lock
+poetry.lock
+
+# Build and distribution files
+/dist/
+/build/
+*.egg-info/
+*.egg
+
+# Testing files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment variables
+.env
+.env.local
+.env*.local

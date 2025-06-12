@@ -1,288 +1,193 @@
-import requests
+# -*- coding: utf-8 -*-
+import asyncio
+import websockets
+import aiohttp
 import json
-import time
-import io
-import base64
-from PIL import Image, ImageTk
+import cv2
+import qrcode
+from PIL import ImageTk, Image
 import tkinter as tk
-import threading
-import queue
+from io import BytesIO
+from picamera2 import Picamera2
 
-from video_processing.video_processing import init_system, stop_system
-from record_video import record_video
 
-camera_type = "rasberry2"
-counter = 0
+# -------------------- GLOBAL STATE --------------------
+qr_window = None  # Reference to the Tkinter window with the QR-code
+TARGET_FPS = 60
+FRAME_DELAY = 1.0 / TARGET_FPS
+SERVER_WS_URL = "ws://192.168.31.79:8888/camera"
+NEW_QR_URL = "http://147.45.163.58:8081/api/auth_camera/new_qr"
+QR_REDIRECT_BASE = "http://hsmg.ru/Auth_Camera/"  # Used to build the URL encoded in the QR-code
 
-id_camera = 3
-id_user = "-1"
-token = ""
 
-host = "http://104.238.29.249:8080"
-camera_file = "camera.py"
-cv_file = "cv.py"
+# -------------------- QR-CODE HELPERS --------------------
 
-root = None
-tk_image = None
-gui_queue = queue.Queue()  # Queue for GUI operations
+def open_qr_window(token: str) -> None:
+    """Show a window with a freshly generated QR-code and keep a global reference."""
+    global qr_window
 
-def auth_cam(user_id):
-    print("")
-    url = host + '/api/auth_for_camera/' + str(user_id)
-    print(url)
+    # Close previous window (if it exists)
+    close_qr_window()
+
+    qr_data = f"{QR_REDIRECT_BASE}{token}"
+    qr = qrcode.make(qr_data)
+
+    img_bytes = BytesIO()
+    qr.save(img_bytes, format="PNG")
+    img_bytes.seek(0)
+
+
+    # IMPORTANT: Tk root must be created before instantiating PhotoImage
+    qr_window = tk.Tk()
+    qr_window.title("QR Code Scan to Authorise Camera")
+
+    img_tk = ImageTk.PhotoImage(Image.open(img_bytes), master=qr_window)
+
+    label = tk.Label(qr_window, image=img_tk)
+    label.image = img_tk  # Prevent garbage-collection
+    label.pack()
+
+    # Render the first frame of the UI (non-blocking)
+    qr_window.update()
+    print("[INFO] QR-code displayed  waiting for the mobile app")
+
+
+def close_qr_window() -> None:
+    """Close the QR-code window if it is currently open."""
+    global qr_window
+    if qr_window is not None:
+        qr_window.destroy()
+        qr_window = None
+        print("[INFO] QR-code window closed.")
+
+
+# -------------------- CAMERA WRAPPER --------------------
+
+class PiCameraCapture:
+    """A minimal wrapper around PiCamera2 providing an OpenCV-style API."""
+
+    def __init__(self) -> None:
+        self.camera = Picamera2()
+        config = self.camera.create_video_configuration(
+            main={"size": (1920, 1080), "format": "RGB888"},
+            controls={"FrameRate": TARGET_FPS},
+        )
+        self.camera.configure(config)
+        self.camera.start(show_preview=False)
+        print("[INFO] PiCamera2 started with target FPS:", TARGET_FPS)
+
+    def read(self):
+        frame = self.camera.capture_array()
+        return True, frame
+
+    def isOpened(self):
+        return True  # Always true while the camera is active
+
+    def release(self):
+        self.camera.stop()
+        self.camera.close()
+        print("[INFO] Camera released.")
+
+
+# -------------------- NETWORK HELPERS --------------------
+
+async def fetch_new_token() -> str:
+    """Request a new token from the backend that will be encoded inside the QR-code."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(NEW_QR_URL) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"Unexpected status {resp.status} when requesting QR token")
+            data = await resp.json()
+            token = data.get("token") if isinstance(data, dict) else str(data)
+            print("[INFO] Received new token:", token)
+            return token
+            
+
+
+# -------------------- STREAMING LOGIC --------------------
+
+async def stream_camera(ws: websockets.WebSocketClientProtocol) -> None:
+    """Capture frames and push them through the open WebSocket connection until it closes."""
+    camera = PiCameraCapture()
     try:
-        response = requests.post(url)
-        print(f'Status Code: {response.status_code}')
-        
-        # Проверяем заголовок Content-Type (необязательно, но рекомендуется)
-        content_type = response.headers.get('Content-Type', '')
-        
-        if 'application/json' not in content_type:
-            print(f'Неожиданный Content-Type: {content_type}. Ответ не в JSON формате')
-        
-        # Пытаемся распарсить JSON
+        while camera.isOpened():
+            ret, frame = camera.read()
+            if not ret:
+                print("[WARNING] Failed to capture frame  stopping stream.")
+                break
+
+            # Encode frame as JPEG
+            success, jpeg_frame = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if not success:
+                print("[WARNING] Failed to encode frame  skipping.")
+                continue
+
+            await ws.send(jpeg_frame.tobytes())
+            cv2.imshow("Client  Live Camera", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                print("[INFO] Local quit signal  received  stopping stream.")
+                break
+
+            await asyncio.sleep(FRAME_DELAY)
+    except websockets.exceptions.ConnectionClosed:
+        print("[INFO] WebSocket closed by server  stream ended.")
+    finally:
+        camera.release()
+        cv2.destroyAllWindows()
+
+
+# -------------------- MAIN CLIENT LOOP --------------------
+
+async def camera_client() -> None:
+    """Main loop: request token ? wait for start_stream ? stream video ? repeat."""
+    while True:
         try:
-            json_data = response.json()
-            print('Успешно распарсен JSON ответ55:')
-            print(json.dumps(json_data, indent=4, ensure_ascii=False))
-            if(json_data["token"] != "-1"):
-                print("666")
-                token = json_data["token"]
-                return token
-            print("777")
-            
-        except json.decoder.JSONDecodeError:
-            print(f'Ошибка декодирования JSON. Ответ сервера: {response.text}')
-            
-    except Exception as e:
-        print(f'Непредвиденная ошибка324: {e}')
-    print("token")
-    print(token)
-    return "ERRROROR ERROR "
+            token = await fetch_new_token()
+        except Exception as exc:
+            print(f"[ERROR] Failed to fetch token: {exc}. Retrying in 3 ")
+            await asyncio.sleep(3)
+            continue
 
-
-def show_image(base64_data):
-    global root, tk_image
-
-    # Decode Base64 to binary data
-    image_data = base64.b64decode(base64_data)
-
-    # Create image from binary data
-    image = Image.open(io.BytesIO(image_data))
-
-    # Get screen dimensions
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-
-    # Calculate size for square QR code (use the smaller dimension)
-    qr_size = min(screen_width, screen_height) * 0.7  # 70% of smaller dimension
-    
-    # Resize image to be square
-    image = image.resize((int(qr_size), int(qr_size)), Image.Resampling.LANCZOS)
-
-    # Convert image to Tkinter format
-    tk_image = ImageTk.PhotoImage(image)
-
-    # Clear existing widgets
-    for widget in root.winfo_children():
-        widget.destroy()
-    
-    # Center the QR code in the window
-    frame = tk.Frame(root, width=screen_width, height=screen_height)
-    frame.pack(fill="both", expand=True)
-    
-    label = tk.Label(frame, image=tk_image)
-    label.place(relx=0.5, rely=0.5, anchor="center")
-
-def close_image_window():
-    pass  # This is now handled differently
-
-def create_new_window_with_qr():
-    qr_code = getQR()
-    if qr_code:
-        show_image(qr_code)
-
-def handle_gui_requests():
-    """Process GUI requests from the queue."""
-    try:
-        while True:
-            # Get a request from the queue without blocking
-            request, args = gui_queue.get_nowait()
-            
-            if request == "show_qr":
-                create_new_window_with_qr()
-            elif request == "close":
-                # Just clear the window, don't destroy it
-                for widget in root.winfo_children():
-                    widget.destroy()
-                
-            gui_queue.task_done()
-    except queue.Empty:
-        # Queue is empty, schedule next check
-        if root:
-            root.after(100, handle_gui_requests)
-
-def getQR():
-    url = host + '/api/generate_qr/' + str(id_camera)
-    try:
-        response = requests.get(url)
-        print(f'Status Code: {response.status_code}')
-            
-        # Проверяем заголовок Content-Type (необязательно, но рекомендуется)
-        content_type = response.headers.get('Content-Type', '')
-            
-        if 'application/json' not in content_type:
-            print(f'Неожиданный Content-Type: {content_type}. Ответ не в JSON формате')
-            
-        # Пытаемся распарсить JSON
-        try:
-            json_data = response.json()
-            print('Успешно распарсен JSON ответ:')
-            print(json.dumps(json_data, indent=4, ensure_ascii=False))
-
-            image_data = base64.b64decode(json_data["qr_code"])
-            image = Image.open(io.BytesIO(image_data))
-            return json_data["qr_code"]
-        except Exception as e:
-            print(f'Непредвиденная ошибка2: {e}')
-    except Exception as e:
-        print(f'Непредвиденная ошибка1: {e}')
-
-
-
-def second_part(result, user_id):
-    print("second")
-    token = auth_cam(user_id)
-    print(token)
-    # Calculate the average weight from the first set (approach)
-    weights = 0
-    count_done = 0
-    if result:  # Check if first set exists
-        approach_data = result["1"]
-        count_done = len(approach_data)  # Get data for the first approach
-        weights_in_approach = [rep_data[0] for rep_data in approach_data if rep_data]
-        
-    url = host + '/api/done_exercise_by_user'
-                    
-    data = {
-        "id": 1,
-        "sequence_number": 2,
-        "id_exercise": 31,
-        "name": "Bench press",
-        "example_exercise": "",
-        "weight": 100.0,
-        "count": 12,
-        "rest_time": "3 seconds",
-        "is_it_done": True,
-        "weight_done": weights,
-        "count_done": count_done,
-    }
-    print("lKJKJDLSKFJLSKDJFLKSDJFLKDJFLKSDJFLKDSJFLKDSJFLKSDJFLKSJD")
-    
-                    
-                    # Bearer Token
-                
-                    # Заголовки запроса, включая Bearer Token
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    print(headers)
-    try:
-        # Отправка POST-запроса 
-        response = requests.post(url, json=data, headers=headers)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-                        
-        print("Status Code:", response.status_code)
-        print("Response Body:", response.json())
-        print(data)
-        token = ""
-    except requests.exceptions.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")
-    except Exception as err:
-        print(f"An error occurred: {err}")
-        
-
-def main():
-    global counter
-    i = 0
-    while(i < 300):  # Можно сделать бесконечный цикл while True:
-        url = host + '/api/get_info_about_camera/' + str(id_camera)
+        open_qr_window(token)
 
         try:
-            response = requests.get(url)
-            print(f'Status Code: {response.status_code}')
-            
-            # Process JSON response
-            try:
-                json_data = response.json()
-                print('Успешно распарсен JSON ответ:')
-                print(json.dumps(json_data, indent=4, ensure_ascii=False))
-                
-                if json_data["id_user"] != "-1":
-                    id_user = json_data["id_user"]
-                    print("????")
-                    
-                    # Close QR code window (thread-safe)
-                    gui_queue.put(("close", None))
-                    
-                    print("!!!")
-                    print(json_data["id_user"])
-                    
-                    token = auth_cam(id_user)
-                    
-                    # Записываем видео
-                    filename = f"{id_user}_{counter}.mp4"
-                    record_video(camera_type, filename)
-                    counter += 1  # Увеличиваем счетчик для следующего файла
-                    print(f"FUCKING TOKEN {token}")
-                    
-                    # Show QR code again (thread-safe)
-                    id_user = "-1"
-                    gui_queue.put(("show_qr", None))
-                    
-                    # Продолжаем цикл вместо выхода
-                    time.sleep(2)
-                    main()
-                    break
-                    #continue
-                    
-            except json.decoder.JSONDecodeError:
-                print(f'Ошибка декодирования JSON. Ответ сервера: {response.text}')
+            async with websockets.connect(SERVER_WS_URL) as ws:
+                await ws.send(json.dumps({"token": token}))
+                print("[INFO] Token sent  awaiting instructions from server")
 
-        except requests.exceptions.ConnectionError:
-            print(f'Ошибка подключения к {url}. Убедитесь, что сервер запущен.')
-        except requests.exceptions.RequestException as e:
-            print(f'Ошибка запроса: {e}')
-        except Exception as e:
-            print(f'Непредвиденная ошибка: {e}')
-        
-        time.sleep(5)
-        i+=1
+                # Wait for commands from server
+                while True:
+                    msg = await ws.recv()
+                    try:
+                        data = json.loads(msg)
+                    except (TypeError, json.JSONDecodeError):
+                        data = {}
 
-# Начальная настройка программы
+                    command = data.get("command")
+                    if command == "start_stream":
+                        print("[INFO] Received start_stream beginning video upload.")
+                        close_qr_window()
+                        await stream_camera(ws)
+                        break  # After streaming returns, break to fetch a new token
+                    elif command == "stop_stream":
+                        print("[INFO] Received stop_stream server requested to end transmission.")
+                        break  # Server explicitly asked to stop (rare, as it will usually just close)
+        except (ConnectionRefusedError, websockets.exceptions.InvalidURI) as exc:
+            print(f"[ERROR] Could not connect to server: {exc}. Retrying in 3 s")
+            await asyncio.sleep(3)
+            continue
+        except websockets.exceptions.ConnectionClosedError as exc:
+            print(f"[INFO] Connection closed unexpectedly: {exc}. Restarting loop")
+        finally:
+            close_qr_window()
+            cv2.destroyAllWindows()
+            print("[INFO] Restarting main loop  waiting for new session\n")
+            # Small delay to avoid tight reconnect loops
+            await asyncio.sleep(1)
+
+
 if __name__ == "__main__":
-    root = tk.Tk()
-    root.title("Изображение")
-
-    # Показываем первый QR-код
-    create_new_window_with_qr()
-
-    
-    # Start GUI request handler
-    root.after(100, handle_gui_requests)
-
-    # Запускаем основной код в отдельном потоке
-    main_thread = threading.Thread(target=main)
-    main_thread.start()
-    
-    # Инициализируем систему обработки видео
-    init_system(second_part, camera_type, 3)
-    
-    # Запускаем главный цикл Tkinter
-    root.mainloop()
-
-    # Ожидание завершения потока с основным кодом
-    main_thread.join()
-
-    stop_system()
+    try:
+        asyncio.run(camera_client())
+    except KeyboardInterrupt:
+        print("[INFO] Keyboard interrupt received exiting application.") 

@@ -7,7 +7,7 @@ color = None
 scale = 1.0
 zoom_pt = None
 
-video_path = r"/home/mercury/computer_vision1/settings/set_up.mp4"
+video_path = r"/home/mercury/computer_vision1/settings/set_up123.mp4"
 
 
 def zoom(img, center, scale):
